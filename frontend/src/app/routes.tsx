@@ -9,6 +9,9 @@ import LoginPage from "../pages/login/LoginPage";
 import PrivateRoute from "./privateRoute";
 import NotFoundPage from "../pages/errors/NotFoundPage";
 import ServerErrorPage from "../pages/errors/ServerErrorPage";
+import CustomersPage from "../pages/customers/CustomersPage";
+import CreateCustomer from "../pages/customers/CreateCustomer";
+import EditCustomer from "../pages/customers/EditCustomer";
 
 interface AppRoute {
   path: string;
@@ -39,6 +42,24 @@ const routes: AppRoute[] = [
     path: "/vendas/editar/:id",
     element: <EditSale />,
     title: "Editar Venda",
+    roles: ["ADMIN"],
+  },
+  {
+    path: "/clientes",
+    element: <CustomersPage />,
+    title: "Clientes",
+    roles: ["ADMIN"],
+  },
+  {
+    path: "/clientes/novo",
+    element: <CreateCustomer />,
+    title: "Novo Cliente",
+    roles: ["ADMIN"],
+  },
+  {
+    path: "/clientes/editar/:id",
+    element: <EditCustomer />,
+    title: "Editar Cliente",
     roles: ["ADMIN"],
   },
   {
