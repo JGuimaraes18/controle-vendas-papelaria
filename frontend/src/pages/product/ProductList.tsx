@@ -200,11 +200,6 @@ export default function ProductList({
 
                     <td className="p-2.5 text-slate-500">
                       <div className="flex items-center gap-1.5">
-                        <DollarSign
-                          size={12}
-                          className="text-slate-400"
-                        />
-
                         {formatCurrency(
                           product.unit_price
                         )}
@@ -213,11 +208,6 @@ export default function ProductList({
 
                     <td className="p-2.5 text-slate-500">
                       <div className="flex items-center gap-1.5">
-                        <Percent
-                          size={12}
-                          className="text-slate-400"
-                        />
-
                         {product.commission_percent}%
                       </div>
                     </td>
