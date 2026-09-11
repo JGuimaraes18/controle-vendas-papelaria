@@ -1,5 +1,6 @@
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import ModelViewSet
+from rest_framework.exceptions import PermissionDenied
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
@@ -21,12 +22,41 @@ class UserViewSet(ModelViewSet):
 
         return User.objects.filter(id=user.id)
 
+    def perform_create(self, serializer):
+        if not self.request.user.groups.filter(name="ADMIN").exists():
+            raise PermissionDenied(
+                "Apenas usuários ADMIN podem criar usuários."
+            )
+
+        serializer.save()
+
+    def perform_update(self, serializer):
+        if not self.request.user.groups.filter(name="ADMIN").exists():
+            raise PermissionDenied(
+                "Apenas usuários ADMIN podem alterar usuários."
+            )
+
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if not self.request.user.groups.filter(name="ADMIN").exists():
+            raise PermissionDenied(
+                "Apenas usuários ADMIN podem desativar usuários."
+            )
+
+        instance.is_active = False
+        instance.save(update_fields=["is_active"])
+
+
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+
     def validate(self, attrs):
         data = super().validate(attrs)
 
         user = self.user
-        groups = list(user.groups.values_list("name", flat=True))
+        groups = list(
+            user.groups.values_list("name", flat=True)
+        )
 
         data["user"] = {
             "id": user.id,

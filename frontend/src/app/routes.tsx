@@ -15,6 +15,10 @@ import EditCustomer from "../pages/customers/EditCustomer";
 import ProductsPage from "../pages/product/ProductPage";
 import CreateProduct from "../pages/product/CreateProduct";
 import EditProduct from "../pages/product/EditProduct";
+import SellersPage from "../pages/sellers/SellerPage";
+import CreateSeller from "../pages/sellers/CreateSeller";
+import EditSeller from "../pages/sellers/EditSeller";
+
 
 interface AppRoute {
   path: string;
@@ -87,6 +91,24 @@ const routes: AppRoute[] = [
     path: "/produtos/editar/:id",
     element: <EditProduct />,
     title: "Editar Produto",
+    roles: ["ADMIN"],
+  },
+  {
+    path: "/vendedores",
+    element: <SellersPage />,
+    title: "Vendedores",
+    roles: ["ADMIN"],
+  },
+  {
+    path: "/vendedores/novo",
+    element: <CreateSeller />,
+    title: "Novo Vendedor",
+    roles: ["ADMIN"],
+  },
+  {
+    path: "/vendedores/editar/:id",
+    element: <EditSeller />,
+    title: "Editar Vendedor",
     roles: ["ADMIN"],
   },
 ];
