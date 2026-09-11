@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { ChevronRight, Percent, ShoppingCart, LogOut, User } from "lucide-react";
+import { ChevronRight, Percent, ShoppingCart, LogOut, Users, Package, UserRound } from "lucide-react";
 import { isAdmin, logout } from "../../services/authService";
 
 interface Props {
@@ -17,7 +17,9 @@ export default function Sidebar({ isOpen }: Props) {
 
   const items = [
     { label: "Vendas", icones: ShoppingCart, to: "/" },
-    { label: "Clientes", icones: User, to: "/clientes" },
+    { label: "Clientes", icones: Users, to: "/clientes" },
+    { label: "Produtos", icones: Package, to: "/produtos" },
+    { label: "Vendedores", icones: UserRound, to: "/vendedores" },
     ...(isAdmin() ? [{ label: "Comissões", icones: Percent, to: "/comissoes" }] : []),
   ];
 

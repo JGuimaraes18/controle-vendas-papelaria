@@ -12,6 +12,9 @@ import ServerErrorPage from "../pages/errors/ServerErrorPage";
 import CustomersPage from "../pages/customers/CustomersPage";
 import CreateCustomer from "../pages/customers/CreateCustomer";
 import EditCustomer from "../pages/customers/EditCustomer";
+import ProductsPage from "../pages/product/ProductPage";
+import CreateProduct from "../pages/product/CreateProduct";
+import EditProduct from "../pages/product/EditProduct";
 
 interface AppRoute {
   path: string;
@@ -66,6 +69,24 @@ const routes: AppRoute[] = [
     path: "/comissoes",
     element: <CommissionPage />,
     title: "Comissões",
+    roles: ["ADMIN"],
+  },
+  {
+    path: "/produtos",
+    element: <ProductsPage />,
+    title: "Produtos",
+    roles: ["ADMIN"],
+  },
+  {
+    path: "/produtos/novo",
+    element: <CreateProduct />,
+    title: "Novo Produto",
+    roles: ["ADMIN"],
+  },
+  {
+    path: "/produtos/editar/:id",
+    element: <EditProduct />,
+    title: "Editar Produto",
     roles: ["ADMIN"],
   },
 ];
