@@ -9,6 +9,16 @@ import LoginPage from "../pages/login/LoginPage";
 import PrivateRoute from "./privateRoute";
 import NotFoundPage from "../pages/errors/NotFoundPage";
 import ServerErrorPage from "../pages/errors/ServerErrorPage";
+import CustomersPage from "../pages/customers/CustomersPage";
+import CreateCustomer from "../pages/customers/CreateCustomer";
+import EditCustomer from "../pages/customers/EditCustomer";
+import ProductsPage from "../pages/product/ProductPage";
+import CreateProduct from "../pages/product/CreateProduct";
+import EditProduct from "../pages/product/EditProduct";
+import SellersPage from "../pages/sellers/SellerPage";
+import CreateSeller from "../pages/sellers/CreateSeller";
+import EditSeller from "../pages/sellers/EditSeller";
+
 
 interface AppRoute {
   path: string;
@@ -42,9 +52,63 @@ const routes: AppRoute[] = [
     roles: ["ADMIN"],
   },
   {
+    path: "/clientes",
+    element: <CustomersPage />,
+    title: "Clientes",
+    roles: ["ADMIN"],
+  },
+  {
+    path: "/clientes/novo",
+    element: <CreateCustomer />,
+    title: "Novo Cliente",
+    roles: ["ADMIN"],
+  },
+  {
+    path: "/clientes/editar/:id",
+    element: <EditCustomer />,
+    title: "Editar Cliente",
+    roles: ["ADMIN"],
+  },
+  {
     path: "/comissoes",
     element: <CommissionPage />,
     title: "Comissões",
+    roles: ["ADMIN"],
+  },
+  {
+    path: "/produtos",
+    element: <ProductsPage />,
+    title: "Produtos",
+    roles: ["ADMIN"],
+  },
+  {
+    path: "/produtos/novo",
+    element: <CreateProduct />,
+    title: "Novo Produto",
+    roles: ["ADMIN"],
+  },
+  {
+    path: "/produtos/editar/:id",
+    element: <EditProduct />,
+    title: "Editar Produto",
+    roles: ["ADMIN"],
+  },
+  {
+    path: "/vendedores",
+    element: <SellersPage />,
+    title: "Vendedores",
+    roles: ["ADMIN"],
+  },
+  {
+    path: "/vendedores/novo",
+    element: <CreateSeller />,
+    title: "Novo Vendedor",
+    roles: ["ADMIN"],
+  },
+  {
+    path: "/vendedores/editar/:id",
+    element: <EditSeller />,
+    title: "Editar Vendedor",
     roles: ["ADMIN"],
   },
 ];
