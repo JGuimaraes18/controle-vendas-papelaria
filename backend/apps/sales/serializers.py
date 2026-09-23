@@ -3,7 +3,7 @@ from decimal import Decimal
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from apps.sales.models import Sale, SaleItem
+from apps.sales.models import Sale, SaleChangeLog, SaleItem
 
 from .models import CommissionRule
 
@@ -65,7 +65,37 @@ class SaleSerializer(serializers.ModelSerializer):
 
         return sale
 
+    def _snapshot(self, sale):
+        return {
+            "customer": sale.customer_id,
+            "seller": sale.seller_id,
+            "items": [
+                {"product": item.product_id, "quantity": item.quantity}
+                for item in sale.items.all()
+            ],
+        }
+
+    def _diff(self, before, after):
+        fields = {}
+
+        for key in ("customer", "seller"):
+            if before[key] != after[key]:
+                fields[key] = {
+                    "before": before[key],
+                    "after": after[key],
+                }
+
+        if before["items"] != after["items"]:
+            fields["items"] = {
+                "before": before["items"],
+                "after": after["items"],
+            }
+
+        return fields
+
     def update(self, instance, validated_data):
+        before = self._snapshot(instance)
+
         items_data = validated_data.pop("items", None)
 
         instance.customer = validated_data.get('customer', instance.customer)
@@ -84,6 +114,19 @@ class SaleSerializer(serializers.ModelSerializer):
                     unit_price=item_data["product"].unit_price,
                 )
 
+        after = self._snapshot(instance)
+
+        user = getattr(self.context.get("request"), "user", None)
+
+        if user is None or not user.is_authenticated:
+            return instance
+
+        SaleChangeLog.objects.create(
+            sale=instance,
+            user=user,
+            fields_changed=self._diff(before, after),
+        )
+
         return instance
 
     def validate(self, attrs):
@@ -95,6 +138,29 @@ class SaleSerializer(serializers.ModelSerializer):
             )
 
         return attrs
+
+
+class SaleChangeLogSerializer(serializers.ModelSerializer):
+    user_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SaleChangeLog
+        fields = [
+            "id",
+            "sale",
+            "user",
+            "user_name",
+            "changed_at",
+            "fields_changed",
+        ]
+        read_only_fields = fields
+
+    @extend_schema_field(serializers.CharField())
+    def get_user_name(self, obj):
+        return (
+            f"{obj.user.first_name} "
+            f"{obj.user.last_name}"
+        ).strip() or obj.user.email
 
 
 class CommissionRuleSerializer(serializers.ModelSerializer):

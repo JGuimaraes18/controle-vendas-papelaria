@@ -10,5 +10,8 @@ class Seller(models.Model):
         blank=True,
     )
 
+    class Meta:
+        ordering = ["user__first_name", "user__last_name"]
+
     def __str__(self):
         return f"{self.user.first_name} {self.user.last_name}"

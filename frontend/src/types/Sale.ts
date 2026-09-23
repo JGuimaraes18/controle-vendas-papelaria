@@ -27,3 +27,12 @@ export interface SaleCreatePayload {
   seller: number;
   items: SaleItemPayload[];
 }
+
+export interface SaleChangeLog {
+  id: number;
+  sale: number;
+  user: number;
+  user_name: string;
+  changed_at: string;
+  fields_changed: Record<string, { before: unknown; after: unknown }>;
+}

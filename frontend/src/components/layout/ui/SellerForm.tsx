@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   ToggleLeft,
 } from "lucide-react";
+import { formatPhone, isValidEmail } from "../../../utils/format";
 
 type SellerGroup = "ADMIN" | "SELLER";
 
@@ -50,7 +51,7 @@ export default function SellerForm({
   const [password, setPassword] = useState("");
 
   const [phone, setPhone] = useState(
-    initialData?.phone || ""
+    formatPhone(initialData?.phone || "")
   );
 
   const [group, setGroup] = useState<SellerGroup>(
@@ -62,35 +63,37 @@ export default function SellerForm({
   );
 
   const [formError, setFormError] = useState(false);
+  const [emailError, setEmailError] = useState(false);
 
   useEffect(() => {
     setFirstName(initialData?.first_name || "");
     setLastName(initialData?.last_name || "");
     setEmail(initialData?.email || "");
     setPassword("");
-    setPhone(initialData?.phone || "");
+    setPhone(formatPhone(initialData?.phone || ""));
     setGroup(initialData?.group || "SELLER");
     setIsActive(initialData?.is_active ?? true);
   }, [initialData]);
 
   const handleSubmit = async () => {
-    if (
-      !firstName.trim() ||
-      !lastName.trim() ||
-      !email.trim()
-    ) {
+    const emailValid = isValidEmail(email);
+
+    if (!firstName.trim() || !lastName.trim() || !email.trim()) {
       setFormError(true);
-      return;
+    } else {
+      setFormError(false);
     }
 
-    setFormError(false);
+    setEmailError(!emailValid);
+
+    if (!firstName.trim() || !lastName.trim() || !emailValid) return;
 
     await onSave({
       first_name: firstName.trim(),
       last_name: lastName.trim(),
       email: email.trim(),
       password,
-      phone: phone.trim(),
+      phone: phone.replace(/\D/g, ""),
       group,
       is_active: isActive,
     });
@@ -188,7 +191,9 @@ export default function SellerForm({
                 }
                 placeholder="email@exemplo.com"
                 className={`w-full text-xs border rounded-lg px-3 py-2 pl-8 outline-none bg-slate-50/50 focus:border-teal-600 transition-all ${
-                  formError && !email.trim()
+                  emailError
+                    ? "border-rose-400 bg-rose-50/50"
+                    : formError && !email.trim()
                     ? "border-rose-400 bg-rose-50/50"
                     : "border-slate-200"
                 }`}
@@ -199,6 +204,12 @@ export default function SellerForm({
                 className="absolute left-2.5 top-2.5 text-slate-400"
               />
             </div>
+
+            {emailError && (
+              <p className="text-[11px] text-rose-500 font-medium mt-1">
+                * Informe um e-mail válido.
+              </p>
+            )}
           </div>
 
           {/* Telefone */}
@@ -209,12 +220,13 @@ export default function SellerForm({
 
             <div className="relative">
               <input
-                type="text"
+                type="tel"
                 value={phone}
                 onChange={(e) =>
-                  setPhone(e.target.value)
+                  setPhone(formatPhone(e.target.value))
                 }
-                placeholder="Telefone"
+                placeholder="(00) 00000-0000"
+                maxLength={15}
                 className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 pl-8 outline-none bg-slate-50/50 focus:border-teal-600 transition-all"
               />
 

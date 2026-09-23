@@ -107,3 +107,24 @@ class CustomerViewSetTest(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(Customer.objects.count(), 1)
+
+    def test_customers_ordered_by_name_asc(self):
+        Customer.objects.create(
+            name="Zeta Cliente",
+            email="zeta@email.com",
+            phone="11911111111",
+        )
+        Customer.objects.create(
+            name="Alfa Cliente",
+            email="alfa@email.com",
+            phone="11922222222",
+        )
+
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        names = [item["name"] for item in response.data]
+        self.assertEqual(names, sorted(names))
+        self.assertEqual(names[0], "Alfa Cliente")

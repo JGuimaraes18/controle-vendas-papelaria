@@ -15,6 +15,9 @@ class Product(models.Model):
         ],
     )
 
+    class Meta:
+        ordering = ["description"]
+
     def save(self, *args, **kwargs):
         is_new = self.pk is None
         super().save(*args, **kwargs)

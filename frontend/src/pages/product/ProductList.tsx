@@ -13,11 +13,15 @@ import {
 
 import type { Product } from "../../types/Product";
 import { ConfirmModal } from "../../components/layout/ui/ConfirmModal";
+import SortableTh from "../../components/layout/ui/SortableTh";
+import type { SortDirection } from "../../components/layout/ui/SortableTh";
 import { isAdmin } from "../../services/authService";
 
 interface ProductListProps {
   searchTerm: string;
 }
+
+type ProductSortKey = "code" | "description" | "unit_price" | "commission_percent";
 
 export default function ProductList({
   searchTerm,
@@ -29,6 +33,8 @@ export default function ProductList({
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<ProductSortKey>("description");
+  const [sortDir, setSortDir] = useState<SortDirection>("asc");
 
   const [productToDelete, setProductToDelete] =
     useState<Product | null>(null);
@@ -54,19 +60,48 @@ export default function ProductList({
     }
   }
 
-  const filteredProducts = useMemo(() => {
+  function toggleSort(key: ProductSortKey) {
+    if (sortKey === key) {
+      setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  const sortedProducts = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
 
-    if (!term) {
-      return products;
-    }
+    const filtered = term
+      ? products.filter(
+          (product) =>
+            product.code.toLowerCase().includes(term) ||
+            product.description.toLowerCase().includes(term)
+        )
+      : [...products];
 
-    return products.filter(
-      (product) =>
-        product.code.toLowerCase().includes(term) ||
-        product.description.toLowerCase().includes(term)
-    );
-  }, [products, searchTerm]);
+    return filtered.sort((a, b) => {
+      let cmp: number;
+
+      switch (sortKey) {
+        case "code":
+          cmp = a.code.localeCompare(b.code);
+          break;
+        case "unit_price":
+          cmp = Number(a.unit_price) - Number(b.unit_price);
+          break;
+        case "commission_percent":
+          cmp = Number(a.commission_percent) - Number(b.commission_percent);
+          break;
+        case "description":
+        default:
+          cmp = a.description.localeCompare(b.description);
+          break;
+      }
+
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [products, searchTerm, sortKey, sortDir]);
 
   const handleDelete = async () => {
     if (!productToDelete) return;
@@ -146,16 +181,34 @@ export default function ProductList({
           <table className="w-full text-left border-collapse">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr className="text-slate-500 font-semibold text-[11px] uppercase">
-                <th className="p-2.5 w-[10%]">Código</th>
-                <th className="p-2.5 w-[40%]">
-                  Descrição
-                </th>
-                <th className="p-2.5 w-[18%]">
-                  Preço Unitário
-                </th>
-                <th className="p-2.5 w-[17%]">
-                  Comissão
-                </th>
+                <SortableTh
+                  label="Código"
+                  active={sortKey === "code"}
+                  direction={sortDir}
+                  onSort={() => toggleSort("code")}
+                  className="p-2.5 w-[10%]"
+                />
+                <SortableTh
+                  label="Descrição"
+                  active={sortKey === "description"}
+                  direction={sortDir}
+                  onSort={() => toggleSort("description")}
+                  className="p-2.5 w-[40%]"
+                />
+                <SortableTh
+                  label="Preço Unitário"
+                  active={sortKey === "unit_price"}
+                  direction={sortDir}
+                  onSort={() => toggleSort("unit_price")}
+                  className="p-2.5 w-[18%]"
+                />
+                <SortableTh
+                  label="Comissão"
+                  active={sortKey === "commission_percent"}
+                  direction={sortDir}
+                  onSort={() => toggleSort("commission_percent")}
+                  className="p-2.5 w-[17%]"
+                />
                 <th className="p-2.5 w-[15%] text-center">
                   {admin ? "Ação" : ""}
                 </th>
@@ -163,7 +216,7 @@ export default function ProductList({
             </thead>
 
             <tbody className="divide-y divide-slate-50 text-xs">
-              {filteredProducts.length === 0 ? (
+              {sortedProducts.length === 0 ? (
                 <tr>
                   <td
                     colSpan={5}
@@ -175,7 +228,7 @@ export default function ProductList({
                   </td>
                 </tr>
               ) : (
-                filteredProducts.map((product) => (
+                sortedProducts.map((product) => (
                   <tr
                     key={product.id}
                     className="hover:bg-slate-50/50 transition-colors"

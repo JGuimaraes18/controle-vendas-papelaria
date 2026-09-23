@@ -120,3 +120,24 @@ class SellerViewSetTest(TestCase):
         response = self.client.delete(f"{self.url}{self.seller.id}/")
 
         self.assertEqual(response.status_code, 403)
+
+    def test_sellers_ordered_by_name_asc(self):
+        other_user = User.objects.create_user(
+            email="ana@email.com",
+            password="123456",
+            first_name="Ana",
+            last_name="Silva",
+        )
+        Seller.objects.create(
+            user=other_user,
+            phone="11933333333",
+        )
+
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        names = [item["full_name"] for item in response.data]
+        self.assertEqual(names, sorted(names))
+        self.assertEqual(names[0], "Ana Silva")

@@ -2,6 +2,7 @@ from django.utils.dateparse import parse_date
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 from rest_framework import status
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -12,7 +13,7 @@ from core.permissions import IsAdminUserRole, IsOwnerSale
 
 from .models import CommissionRule, Sale
 from .serializers import (CommissionReportSerializer, CommissionRuleSerializer,
-                          SaleSerializer)
+                          SaleChangeLogSerializer, SaleSerializer)
 
 
 class SaleViewSet(ModelViewSet):
@@ -47,6 +48,26 @@ class SaleViewSet(ModelViewSet):
             serializer.save()
         else:
             serializer.save(seller=user.seller_profile)
+
+    def destroy(self, request, *args, **kwargs):
+        return Response(
+            {"detail": "A exclusão de vendas não é permitida."},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+
+    @action(detail=True, methods=["get"], url_path="history")
+    def history(self, request, pk=None):
+        sale = self.get_object()
+
+        logs = (
+            sale.change_logs
+            .select_related("user")
+            .order_by("changed_at")
+        )
+
+        serializer = SaleChangeLogSerializer(logs, many=True)
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class CommissionRuleViewSet(ModelViewSet):

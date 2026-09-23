@@ -49,7 +49,7 @@ const routes: AppRoute[] = [
     path: "/vendas/editar/:id",
     element: <EditSale />,
     title: "Editar Venda",
-    roles: ["ADMIN"],
+    roles: ["ADMIN", "SELLER"],
   },
   {
     path: "/clientes",

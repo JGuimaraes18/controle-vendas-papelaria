@@ -113,3 +113,24 @@ class ProductViewSetTest(TestCase):
 
         self.assertEqual(response.status_code, 204)
         self.assertEqual(Product.objects.count(), 0)
+
+    def test_products_ordered_by_description_asc(self):
+        Product.objects.create(
+            description="Banana",
+            unit_price=Decimal("10.00"),
+            commission_percent=Decimal("2.00"),
+        )
+        Product.objects.create(
+            description="Abacaxi",
+            unit_price=Decimal("20.00"),
+            commission_percent=Decimal("3.00"),
+        )
+
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        descriptions = [item["description"] for item in response.data]
+        self.assertEqual(descriptions, sorted(descriptions))
+        self.assertEqual(descriptions[0], "Abacaxi")

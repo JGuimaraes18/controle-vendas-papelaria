@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import DecimalField, F, Sum
@@ -25,6 +26,9 @@ class Sale(models.Model):
         on_delete=models.PROTECT,
         related_name="sales",
     )
+
+    class Meta:
+        ordering = ["-date"]
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None
@@ -82,6 +86,30 @@ class SaleItem(models.Model):
 
     def __str__(self):
         return f"{self.product.description} - {self.quantity}"
+
+
+class SaleChangeLog(models.Model):
+    sale = models.ForeignKey(
+        "sales.Sale",
+        related_name="change_logs",
+        on_delete=models.CASCADE,
+    )
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="sale_change_logs",
+        on_delete=models.PROTECT,
+    )
+
+    changed_at = models.DateTimeField(auto_now_add=True)
+
+    fields_changed = models.JSONField(default=dict, blank=True)
+
+    def __str__(self):
+        return (
+            f"{self.sale.invoice_number} - "
+            f"{self.user.email} - {self.changed_at}"
+        )
 
 
 class CommissionRule(models.Model):

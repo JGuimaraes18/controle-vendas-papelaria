@@ -1,8 +1,13 @@
 import { api } from "./api";
-import type { Sale, SaleCreatePayload } from "../types/Sale";
+import type { Sale, SaleChangeLog, SaleCreatePayload } from "../types/Sale";
 
 export async function getSales(): Promise<Sale[]> {
   const response = await api.get<Sale[]>("/api/sales/");
+  return response.data;
+}
+
+export async function getSaleHistory(id: number): Promise<SaleChangeLog[]> {
+  const response = await api.get<SaleChangeLog[]>(`/api/sales/${id}/history/`);
   return response.data;
 }
 

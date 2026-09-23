@@ -9,11 +9,16 @@ import {
 
 import type { Customer } from "../../types/Customer";
 import { ConfirmModal } from "../../components/layout/ui/ConfirmModal";
+import SortableTh from "../../components/layout/ui/SortableTh";
+import type { SortDirection } from "../../components/layout/ui/SortableTh";
 import { isAdmin } from "../../services/authService";
+import { formatPhone } from "../../utils/format";
 
 interface CustomerListProps {
   searchTerm: string;
 }
+
+type CustomerSortKey = "name" | "email" | "phone";
 
 export default function CustomerList({
   searchTerm,
@@ -25,6 +30,8 @@ export default function CustomerList({
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<CustomerSortKey>("name");
+  const [sortDir, setSortDir] = useState<SortDirection>("asc");
 
   const [customerToDelete, setCustomerToDelete] =
     useState<Customer | null>(null);
@@ -50,20 +57,46 @@ export default function CustomerList({
     }
   }
 
-  const filteredCustomers = useMemo(() => {
+  function toggleSort(key: CustomerSortKey) {
+    if (sortKey === key) {
+      setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  const sortedCustomers = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
 
-    if (!term) {
-      return customers;
-    }
+    const filtered = term
+      ? customers.filter(
+          (customer) =>
+            customer.name.toLowerCase().includes(term) ||
+            customer.email.toLowerCase().includes(term) ||
+            customer.phone.toLowerCase().includes(term)
+        )
+      : [...customers];
 
-    return customers.filter(
-      (customer) =>
-        customer.name.toLowerCase().includes(term) ||
-        customer.email.toLowerCase().includes(term) ||
-        customer.phone.toLowerCase().includes(term)
-    );
-  }, [customers, searchTerm]);
+    return filtered.sort((a, b) => {
+      let cmp: number;
+
+      switch (sortKey) {
+        case "email":
+          cmp = a.email.localeCompare(b.email);
+          break;
+        case "phone":
+          cmp = a.phone.localeCompare(b.phone);
+          break;
+        case "name":
+        default:
+          cmp = a.name.localeCompare(b.name);
+          break;
+      }
+
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [customers, searchTerm, sortKey, sortDir]);
 
   const handleDelete = async () => {
     if (!customerToDelete) return;
@@ -130,9 +163,27 @@ export default function CustomerList({
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr className="text-slate-500 font-semibold text-[11px] uppercase">
                 <th className="p-2.5 w-[8%]">ID</th>
-                <th className="p-2.5 w-[30%]">Cliente</th>
-                <th className="p-2.5 w-[30%]">E-mail</th>
-                <th className="p-2.5 w-[22%]">Telefone</th>
+                <SortableTh
+                  label="Cliente"
+                  active={sortKey === "name"}
+                  direction={sortDir}
+                  onSort={() => toggleSort("name")}
+                  className="p-2.5 w-[30%]"
+                />
+                <SortableTh
+                  label="E-mail"
+                  active={sortKey === "email"}
+                  direction={sortDir}
+                  onSort={() => toggleSort("email")}
+                  className="p-2.5 w-[30%]"
+                />
+                <SortableTh
+                  label="Telefone"
+                  active={sortKey === "phone"}
+                  direction={sortDir}
+                  onSort={() => toggleSort("phone")}
+                  className="p-2.5 w-[22%]"
+                />
                 <th className="p-2.5 w-[10%] text-center">
                   Ação
                 </th>
@@ -140,7 +191,7 @@ export default function CustomerList({
             </thead>
 
             <tbody className="divide-y divide-slate-50 text-xs">
-              {filteredCustomers.length === 0 ? (
+              {sortedCustomers.length === 0 ? (
                 <tr>
                   <td
                     colSpan={5}
@@ -152,7 +203,7 @@ export default function CustomerList({
                   </td>
                 </tr>
               ) : (
-                filteredCustomers.map((customer) => (
+                sortedCustomers.map((customer) => (
                   <tr
                     key={customer.id}
                     className="hover:bg-slate-50/50 transition-colors"
@@ -192,7 +243,7 @@ export default function CustomerList({
                           size={12}
                           className="text-slate-400"
                         />
-                        {customer.phone}
+                        {formatPhone(customer.phone)}
                       </div>
                     </td>
 

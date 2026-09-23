@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { User, Mail, Phone } from "lucide-react";
 import type { Customer } from "../../../types/Customer";
+import { formatPhone, isValidEmail } from "../../../utils/format";
 
 interface CustomerFormProps {
   initialData?: Customer | null;
@@ -18,27 +19,35 @@ export default function CustomerForm({
 
   const [name, setName] = useState(initialData?.name || "");
   const [email, setEmail] = useState(initialData?.email || "");
-  const [phone, setPhone] = useState(initialData?.phone || "");
+  const [phone, setPhone] = useState(
+    formatPhone(initialData?.phone || "")
+  );
   const [formError, setFormError] = useState(false);
+  const [emailError, setEmailError] = useState(false);
 
   useEffect(() => {
     setName(initialData?.name || "");
     setEmail(initialData?.email || "");
-    setPhone(initialData?.phone || "");
+    setPhone(formatPhone(initialData?.phone || ""));
   }, [initialData]);
 
   const handleSubmit = async () => {
-    if (!name.trim() || !email.trim() || !phone.trim()) {
+    const emailValid = isValidEmail(email);
+
+    if (!name.trim() || !phone.trim()) {
       setFormError(true);
-      return;
+    } else {
+      setFormError(false);
     }
 
-    setFormError(false);
+    setEmailError(!emailValid);
+
+    if (!name.trim() || !phone.trim() || !emailValid) return;
 
     await onSave({
       name: name.trim(),
       email: email.trim(),
-      phone: phone.trim(),
+      phone: phone.replace(/\D/g, ""),
     });
   };
 
@@ -96,7 +105,9 @@ export default function CustomerForm({
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="email@exemplo.com"
                 className={`w-full text-xs border rounded-lg px-3 py-2 pl-8 outline-none bg-slate-50/50 focus:border-teal-600 transition-all ${
-                  formError && !email.trim()
+                  emailError
+                    ? "border-rose-400 bg-rose-50/50"
+                    : formError && !email.trim()
                     ? "border-rose-400 bg-rose-50/50"
                     : "border-slate-200"
                 }`}
@@ -107,6 +118,12 @@ export default function CustomerForm({
                 className="absolute left-2.5 top-2.5 text-slate-400"
               />
             </div>
+
+            {emailError && (
+              <p className="text-[11px] text-rose-500 font-medium mt-1">
+                * Informe um e-mail válido.
+              </p>
+            )}
           </div>
 
           <div>
@@ -116,10 +133,11 @@ export default function CustomerForm({
 
             <div className="relative">
               <input
-                type="text"
+                type="tel"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => setPhone(formatPhone(e.target.value))}
                 placeholder="(00) 00000-0000"
+                maxLength={15}
                 className={`w-full text-xs border rounded-lg px-3 py-2 pl-8 outline-none bg-slate-50/50 focus:border-teal-600 transition-all ${
                   formError && !phone.trim()
                     ? "border-rose-400 bg-rose-50/50"

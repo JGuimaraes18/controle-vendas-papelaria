@@ -1,31 +1,44 @@
 import { useEffect, useState, useCallback, useMemo, Fragment } from "react";
-import { getSales, deleteSale } from "../../services/salesService";
+import { getSales } from "../../services/salesService";
 import { getCustomers } from "../../services/customerService";
 import { getSellers } from "../../services/sellerService";
 import type { Sale } from "../../types/Sale";
 import type { Customer } from "../../types/Customer";
 import type { Seller } from "../../types/Seller";
-import { ChevronDown, ChevronUp, Pencil, Trash2, FileText } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Pencil,
+  History,
+  FileText,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { ConfirmModal } from "../../components/layout/ui/ConfirmModal";
+import SaleHistoryModal from "../../components/layout/ui/SaleHistoryModal";
+import SortableTh from "../../components/layout/ui/SortableTh";
+import type { SortDirection } from "../../components/layout/ui/SortableTh";
 import { getUser, isSeller as isSellerRole } from "../../services/authService";
 
 interface SalesListProps {
   searchTerm: string;
 }
 
+type SaleSortKey =
+  | "invoice_number"
+  | "customer"
+  | "seller"
+  | "date"
+  | "total_value";
+
 export default function SalesList({ searchTerm }: SalesListProps) {
   const [sales, setSales] = useState<Sale[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [expandedSaleId, setExpandedSaleId] = useState<number | null>(null);
+  const [historySale, setHistorySale] = useState<Sale | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [saleToDelete, setSaleToDelete] = useState<number | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  
-  const user = getUser();
-  const isSeller = user?.groups?.includes("SELLER");
+  const [sortKey, setSortKey] = useState<SaleSortKey>("date");
+  const [sortDir, setSortDir] = useState<SortDirection>("desc");
 
   const navigate = useNavigate();
 
@@ -33,6 +46,15 @@ export default function SalesList({ searchTerm }: SalesListProps) {
     style: "currency",
     currency: "BRL",
   });
+
+  function toggleSort(key: SaleSortKey) {
+    if (sortKey === key) {
+      setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir(key === "date" ? "desc" : "asc");
+    }
+  }
 
   const fetchAll = useCallback(async () => {
     try {
@@ -77,34 +99,6 @@ export default function SalesList({ searchTerm }: SalesListProps) {
     }
   }, []);
 
-  async function handleDeleteConfirmed() {
-    if (!saleToDelete) return;
-
-    try {
-      await deleteSale(saleToDelete);
-      setSales((prevSales) => prevSales.filter((sale) => sale.id !== saleToDelete));
-
-      navigate("/", {
-        replace: true, 
-        state: {
-          message: "Venda excluída com sucesso!",
-          type: "success"
-         }
-      });
-    } catch (err) {
-      console.error(err);
-      navigate("/", {
-        state: { 
-          message: "Erro ao excluir a venda.",
-          type: "error"
-         }
-      });
-    } finally {
-      setIsModalOpen(false);
-      setSaleToDelete(null);
-    }
-  }
-
   function toggleExpand(id: number) {
     setExpandedSaleId((prev) => (prev === id ? null : id));
   }
@@ -121,29 +115,54 @@ export default function SalesList({ searchTerm }: SalesListProps) {
     sellers.map((s) => [s.id, s.full_name])
   ), [sellers]);
 
-  const filteredAndSortedSales = useMemo(() => {
+  const sortedSales = useMemo(() => {
     const searchLower = searchTerm.trim().toLowerCase();
 
-    if (!searchLower) {
-      return [...sales].sort((a, b) => Number(b.invoice_number) - Number(a.invoice_number));
-    }
+    const filtered = searchLower
+      ? sales.filter((sale) => {
+          const customerName = customerMap.get(sale.customer)?.toLowerCase() || "";
+          const sellerName = sellerMap.get(sale.seller)?.toLowerCase() || "";
+          const invoiceNumber = String(sale.invoice_number).toLowerCase();
+          const saleDate = new Date(sale.date).toLocaleString("pt-BR").toLowerCase();
 
-    return sales
-      .filter((sale) => {
-        const customerName = customerMap.get(sale.customer)?.toLowerCase() || "";
-        const sellerName = sellerMap.get(sale.seller)?.toLowerCase() || "";
-        const invoiceNumber = String(sale.invoice_number).toLowerCase();
-        const saleDate = new Date(sale.date).toLocaleString("pt-BR").toLowerCase();
+          return (
+            customerName.includes(searchLower) ||
+            sellerName.includes(searchLower) ||
+            invoiceNumber.includes(searchLower) ||
+            saleDate.includes(searchLower)
+          );
+        })
+      : [...sales];
 
-        return (
-          customerName.includes(searchLower) ||
-          sellerName.includes(searchLower) ||
-          invoiceNumber.includes(searchLower) ||
-          saleDate.includes(searchLower)
-        );
-      })
-      .sort((a, b) => Number(b.invoice_number) - Number(a.invoice_number));
-  }, [sales, searchTerm, customerMap, sellerMap]);
+    return filtered.sort((a, b) => {
+      let cmp = 0;
+
+      switch (sortKey) {
+        case "invoice_number":
+          cmp = String(a.invoice_number).localeCompare(String(b.invoice_number));
+          break;
+        case "customer":
+          cmp = (customerMap.get(a.customer) ?? "").localeCompare(
+            customerMap.get(b.customer) ?? ""
+          );
+          break;
+        case "seller":
+          cmp = (sellerMap.get(a.seller) ?? "").localeCompare(
+            sellerMap.get(b.seller) ?? ""
+          );
+          break;
+        case "date":
+          cmp =
+            new Date(a.date).getTime() - new Date(b.date).getTime();
+          break;
+        case "total_value":
+          cmp = a.total_value - b.total_value;
+          break;
+      }
+
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [sales, searchTerm, customerMap, sellerMap, sortKey, sortDir]);
 
   if (loading) return <p className="p-4 text-xs font-medium text-slate-500">Carregando vendas...</p>;
   if (error) return <p className="p-4 text-xs font-medium text-rose-500">{error}</p>;
@@ -155,24 +174,54 @@ export default function SalesList({ searchTerm }: SalesListProps) {
           <table className="w-full text-left text-xs table-fixed border-collapse min-w-[760px] lg:min-w-full">
             <thead className="bg-slate-50 text-slate-500 sticky top-0 z-10 border-b border-slate-100">
               <tr className="font-semibold text-[11px] uppercase tracking-wider">
-                <th className="p-3 w-[10%]">Nota Fiscal</th>
-                <th className="p-3 w-[25%]">Cliente</th>
-                <th className="p-3 w-[25%]">Vendedor</th>
-                <th className="p-3 text-center w-[15%]">Data</th>
-                <th className="p-3 text-center w-[15%]">Valor Total</th>
+                <SortableTh
+                  label="Nota Fiscal"
+                  active={sortKey === "invoice_number"}
+                  direction={sortDir}
+                  onSort={() => toggleSort("invoice_number")}
+                  className="p-3 w-[10%]"
+                />
+                <SortableTh
+                  label="Cliente"
+                  active={sortKey === "customer"}
+                  direction={sortDir}
+                  onSort={() => toggleSort("customer")}
+                  className="p-3 w-[25%]"
+                />
+                <SortableTh
+                  label="Vendedor"
+                  active={sortKey === "seller"}
+                  direction={sortDir}
+                  onSort={() => toggleSort("seller")}
+                  className="p-3 w-[25%]"
+                />
+                <SortableTh
+                  label="Data"
+                  active={sortKey === "date"}
+                  direction={sortDir}
+                  onSort={() => toggleSort("date")}
+                  className="p-3 text-center w-[15%]"
+                />
+                <SortableTh
+                  label="Valor Total"
+                  active={sortKey === "total_value"}
+                  direction={sortDir}
+                  onSort={() => toggleSort("total_value")}
+                  className="p-3 text-center w-[15%]"
+                />
                 <th className="p-3 text-center w-[10%]">Ações</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {filteredAndSortedSales.length === 0 ? (
+              {sortedSales.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="p-8 text-center text-slate-400 italic text-[11px]">
                     Nenhuma venda encontrada para o termo pesquisado.
                   </td>
                 </tr>
               ) : (
-                filteredAndSortedSales.map((sale) => (
+                sortedSales.map((sale) => (
                   <Fragment key={sale.id}>
                     <tr className="hover:bg-slate-50/60 transition-colors">
                       <td className="p-2.5">
@@ -211,35 +260,21 @@ export default function SalesList({ searchTerm }: SalesListProps) {
                           >
                             {expandedSaleId === sale.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                           </button>
-                          
+
                           <button
-                            onClick={() => !isSeller && navigate(`/vendas/editar/${sale.id}`)}
-                            disabled={isSeller}
-                            className={`p-1 rounded transition-colors ${
-                              isSeller
-                                ? "text-slate-200 cursor-not-allowed"
-                                : "text-slate-400 hover:text-blue-600 hover:bg-slate-100"
-                            }`}
+                            onClick={() => navigate(`/vendas/editar/${sale.id}`)}
+                            className="p-1 rounded transition-colors text-slate-400 hover:text-blue-600 hover:bg-slate-100"
                             title="Editar venda"
                           >
                             <Pencil size={14} />
                           </button>
 
                           <button
-                            onClick={() => {
-                              if (isSeller) return;
-                              setSaleToDelete(sale.id);
-                              setIsModalOpen(true);
-                            }}
-                            disabled={isSeller}
-                            className={`p-1 rounded transition-colors ${
-                              isSeller
-                                ? "text-slate-200 cursor-not-allowed"
-                                : "text-slate-400 hover:text-rose-600 hover:bg-slate-100"
-                            }`}
-                            title="Excluir venda"
+                            onClick={() => setHistorySale(sale)}
+                            className="p-1 rounded transition-colors text-slate-400 hover:text-teal-600 hover:bg-slate-100"
+                            title="Histórico de alterações"
                           >
-                            <Trash2 size={14} />
+                            <History size={14} />
                           </button>
                         </div>
                       </td>
@@ -298,19 +333,12 @@ export default function SalesList({ searchTerm }: SalesListProps) {
           </table>
         </div>
       </div>
-      
-      {isModalOpen && (
-        <ConfirmModal
-          isOpen={isModalOpen}
-          title="Excluir Venda"
-          message="Deseja excluir esta venda?"
-          onConfirm={handleDeleteConfirmed}
-          onCancel={() => {
-            setIsModalOpen(false);
-            setSaleToDelete(null);
-          }}
-        />
-      )}  
+
+      <SaleHistoryModal
+        key={historySale?.id ?? "none"}
+        sale={historySale}
+        onClose={() => setHistorySale(null)}
+      />
     </>
   );
 }

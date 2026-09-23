@@ -15,10 +15,15 @@ import {
 
 import type { Seller } from "../../types/Seller";
 import { ConfirmModal } from "../../components/layout/ui/ConfirmModal";
+import SortableTh from "../../components/layout/ui/SortableTh";
+import type { SortDirection } from "../../components/layout/ui/SortableTh";
+import { formatPhone } from "../../utils/format";
 
 interface SellerListProps {
   searchTerm?: string;
 }
+
+type SellerSortKey = "full_name" | "email" | "phone" | "group" | "is_active";
 
 export default function SellerList({
   searchTerm = "",
@@ -28,6 +33,8 @@ export default function SellerList({
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SellerSortKey>("full_name");
+  const [sortDir, setSortDir] = useState<SortDirection>("asc");
 
   const [sellerToDelete, setSellerToDelete] =
     useState<Seller | null>(null);
@@ -53,20 +60,52 @@ export default function SellerList({
     }
   }
 
-  const filteredSellers = useMemo(() => {
+  function toggleSort(key: SellerSortKey) {
+    if (sortKey === key) {
+      setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  const sortedSellers = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
 
-    if (!term) {
-      return sellers;
-    }
+    const filtered = term
+      ? sellers.filter(
+          (seller) =>
+            (seller.full_name || "").toLowerCase().includes(term) ||
+            (seller.email || "").toLowerCase().includes(term) ||
+            (seller.phone || "").toLowerCase().includes(term)
+        )
+      : [...sellers];
 
-    return sellers.filter(
-      (seller) =>
-      (seller.full_name || "").toLowerCase().includes(term) ||
-      (seller.email || "").toLowerCase().includes(term) ||
-      (seller.phone || "").toLowerCase().includes(term)
-    );
-  },[sellers, searchTerm]);
+    return filtered.sort((a, b) => {
+      let cmp: number;
+
+      switch (sortKey) {
+        case "email":
+          cmp = (a.email || "").localeCompare(b.email || "");
+          break;
+        case "phone":
+          cmp = (a.phone || "").localeCompare(b.phone || "");
+          break;
+        case "group":
+          cmp = (a.group || "").localeCompare(b.group || "");
+          break;
+        case "is_active":
+          cmp = Number(a.is_active) - Number(b.is_active);
+          break;
+        case "full_name":
+        default:
+          cmp = (a.full_name || "").localeCompare(b.full_name || "");
+          break;
+      }
+
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [sellers, searchTerm, sortKey, sortDir]);
 
 
 
@@ -139,25 +178,45 @@ export default function SellerList({
           <table className="w-full text-left border-collapse">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr className="text-slate-500 font-semibold text-[11px] uppercase">
-                <th className="p-2.5 w-[25%]">
-                  Vendedor 
-                </th>
+                <SortableTh
+                  label="Vendedor"
+                  active={sortKey === "full_name"}
+                  direction={sortDir}
+                  onSort={() => toggleSort("full_name")}
+                  className="p-2.5 w-[25%]"
+                />
 
-                <th className="p-2.5 w-[25%]">
-                  E-mail
-                </th>
+                <SortableTh
+                  label="E-mail"
+                  active={sortKey === "email"}
+                  direction={sortDir}
+                  onSort={() => toggleSort("email")}
+                  className="p-2.5 w-[25%]"
+                />
 
-                <th className="p-2.5 w-[15%]">
-                  Telefone
-                </th>
+                <SortableTh
+                  label="Telefone"
+                  active={sortKey === "phone"}
+                  direction={sortDir}
+                  onSort={() => toggleSort("phone")}
+                  className="p-2.5 w-[15%]"
+                />
 
-                <th className="p-2.5 w-[15%]">
-                  Perfil
-                </th>
+                <SortableTh
+                  label="Perfil"
+                  active={sortKey === "group"}
+                  direction={sortDir}
+                  onSort={() => toggleSort("group")}
+                  className="p-2.5 w-[15%]"
+                />
 
-                <th className="p-2.5 w-[10%]">
-                  Status
-                </th>
+                <SortableTh
+                  label="Status"
+                  active={sortKey === "is_active"}
+                  direction={sortDir}
+                  onSort={() => toggleSort("is_active")}
+                  className="p-2.5 w-[10%]"
+                />
 
                 <th className="p-2.5 w-[10%] text-center">
                   Ação
@@ -166,7 +225,7 @@ export default function SellerList({
             </thead>
 
             <tbody className="divide-y divide-slate-50 text-xs">
-              {filteredSellers.length === 0 ? (
+              {sortedSellers.length === 0 ? (
                 <tr>
                   <td
                     colSpan={6}
@@ -178,7 +237,7 @@ export default function SellerList({
                   </td>
                 </tr>
               ) : (
-                filteredSellers.map((seller) => (
+                sortedSellers.map((seller) => (
                   <tr
                     key={seller.id}
                     className="hover:bg-slate-50/50 transition-colors"
@@ -216,7 +275,7 @@ export default function SellerList({
                           className="text-slate-400"
                         />
 
-                        {seller.phone || "-"}
+                        {formatPhone(seller.phone) || "-"}
                       </div>
                     </td>
 
