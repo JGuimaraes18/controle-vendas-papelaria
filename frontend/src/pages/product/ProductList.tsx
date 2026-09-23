@@ -3,8 +3,6 @@ import {
   Pencil,
   Trash2,
   Package,
-  DollarSign,
-  Percent,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
