@@ -58,12 +58,15 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             user.groups.values_list("name", flat=True)
         )
 
+        seller_profile = getattr(user, "seller_profile", None)
+
         data["user"] = {
             "id": user.id,
             "email": user.email,
             "first_name": user.first_name,
             "last_name": user.last_name,
             "groups": groups,
+            "seller_id": seller_profile.id if seller_profile else None,
         }
 
         return data

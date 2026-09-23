@@ -40,17 +40,35 @@ export default function SaleForm({ initialData, onSave, title }: SaleFormProps) 
 
   useEffect(() => {
     async function loadData() {
-      const [c, s, p] = await Promise.all([
+      const user = getUser();
+      const isSeller = !isAdmin();
+
+      const [c, fetchedSellers, p] = await Promise.all([
         getCustomers(),
-        getSellers(),
+        isSeller ? Promise.resolve([] as Seller[]) : getSellers(),
         getProducts(),
       ]);
 
       setCustomers(c);
       setProducts(p);
 
-      const user = getUser();
-      const isSeller = !isAdmin();
+      // SELLER has no access to /api/sellers/ (403); uses own data from login
+      const s: Seller[] =
+        isSeller && user?.seller_id
+          ? [
+              {
+                id: user.seller_id,
+                user: user.id,
+                first_name: user.first_name ?? "",
+                last_name: user.last_name ?? "",
+                full_name: `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim(),
+                email: user.email ?? "",
+                phone: "",
+                group: "SELLER",
+                is_active: true,
+              },
+            ]
+          : fetchedSellers;
 
       if (initialData) {
         setItems(initialData.items);

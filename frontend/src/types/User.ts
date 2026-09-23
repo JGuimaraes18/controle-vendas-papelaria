@@ -7,6 +7,7 @@ export interface User {
   last_name: string;
   is_active: boolean;
   groups: UserGroup[];
+  seller_id?: number | null;
 }
 
 export interface UserPayload {

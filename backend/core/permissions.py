@@ -1,4 +1,4 @@
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 
 class IsAdminUserRole(BasePermission):
@@ -37,3 +37,21 @@ class IsSelfOrAdmin(BasePermission):
 
         # SELLER permissions limited actions
         return obj == request.user
+
+
+class IsAdminOrReadOnly(BasePermission):
+    # Reading allowed for any authenticated user; writing only for ADMIN
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:
+            return True
+
+        return request.user.groups.filter(name="ADMIN").exists()
+
+
+class CustomerPermission(BasePermission):
+    # Any authenticated user can read/create/update; only ADMIN can delete
+    def has_permission(self, request, view):
+        if request.method == "DELETE":
+            return request.user.groups.filter(name="ADMIN").exists()
+
+        return True

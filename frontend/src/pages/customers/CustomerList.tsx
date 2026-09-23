@@ -9,6 +9,7 @@ import {
 
 import type { Customer } from "../../types/Customer";
 import { ConfirmModal } from "../../components/layout/ui/ConfirmModal";
+import { isAdmin } from "../../services/authService";
 
 interface CustomerListProps {
   searchTerm: string;
@@ -18,6 +19,8 @@ export default function CustomerList({
   searchTerm,
 }: CustomerListProps) {
   const navigate = useNavigate();
+
+  const admin = isAdmin();
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -205,13 +208,15 @@ export default function CustomerList({
                           <Pencil size={13} />
                         </button>
 
-                        <button
-                          onClick={() => openDeleteModal(customer)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-slate-100 transition-colors"
-                          title="Excluir"
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                        {admin && (
+                          <button
+                            onClick={() => openDeleteModal(customer)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-slate-100 transition-colors"
+                            title="Excluir"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

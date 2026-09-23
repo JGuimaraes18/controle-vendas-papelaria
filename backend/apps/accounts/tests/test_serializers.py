@@ -12,7 +12,8 @@ class UserSerializerTest(TestCase):
             "email": "serializer@email.com",
             "first_name": "Nome",
             "last_name": "Sobrenome",
-            "password": "123456"
+            "password": "123456",
+            "group": "SELLER",
         }
 
         serializer = UserSerializer(data=data)

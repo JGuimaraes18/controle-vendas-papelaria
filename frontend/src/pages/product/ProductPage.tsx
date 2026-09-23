@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
 
 import ProductList from "./ProductList";
+import { isAdmin } from "../../services/authService";
 
 export default function ProductsPage() {
   const navigate = useNavigate();
@@ -52,12 +53,14 @@ export default function ProductsPage() {
           />
         </div>
 
-        <button
-          onClick={() => navigate("/produtos/novo")}
-          className="bg-teal-700 text-white px-4 py-1.5 text-xs rounded hover:bg-teal-800 order-3 xs:order-3 transition-colors shrink-0"
-        >
-          Novo Produto
-        </button>
+        {isAdmin() && (
+          <button
+            onClick={() => navigate("/produtos/novo")}
+            className="bg-teal-700 text-white px-4 py-1.5 text-xs rounded hover:bg-teal-800 order-3 xs:order-3 transition-colors shrink-0"
+          >
+            Novo Produto
+          </button>
+        )}
       </div>
 
       {message && (

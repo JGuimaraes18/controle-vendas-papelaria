@@ -13,6 +13,7 @@ import {
 
 import type { Product } from "../../types/Product";
 import { ConfirmModal } from "../../components/layout/ui/ConfirmModal";
+import { isAdmin } from "../../services/authService";
 
 interface ProductListProps {
   searchTerm: string;
@@ -22,6 +23,8 @@ export default function ProductList({
   searchTerm,
 }: ProductListProps) {
   const navigate = useNavigate();
+
+  const admin = isAdmin();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -154,7 +157,7 @@ export default function ProductList({
                   Comissão
                 </th>
                 <th className="p-2.5 w-[15%] text-center">
-                  Ação
+                  {admin ? "Ação" : ""}
                 </th>
               </tr>
             </thead>
@@ -211,29 +214,31 @@ export default function ProductList({
                     </td>
 
                     <td className="p-2.5">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() =>
-                            navigate(
-                              `/produtos/editar/${product.id}`
-                            )
-                          }
-                          className="p-1.5 text-slate-400 hover:text-teal-600 rounded hover:bg-slate-100 transition-colors"
-                          title="Editar"
-                        >
-                          <Pencil size={13} />
-                        </button>
+                      {admin && (
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() =>
+                              navigate(
+                                `/produtos/editar/${product.id}`
+                              )
+                            }
+                            className="p-1.5 text-slate-400 hover:text-teal-600 rounded hover:bg-slate-100 transition-colors"
+                            title="Editar"
+                          >
+                            <Pencil size={13} />
+                          </button>
 
-                        <button
-                          onClick={() =>
-                            openDeleteModal(product)
-                          }
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-slate-100 transition-colors"
-                          title="Excluir"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
+                          <button
+                            onClick={() =>
+                              openDeleteModal(product)
+                            }
+                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-slate-100 transition-colors"
+                            title="Excluir"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))

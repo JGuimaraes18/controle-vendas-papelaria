@@ -8,7 +8,7 @@ import type { Seller } from "../../types/Seller";
 import { ChevronDown, ChevronUp, Pencil, Trash2, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ConfirmModal } from "../../components/layout/ui/ConfirmModal";
-import { getUser } from "../../services/authService";
+import { getUser, isSeller as isSellerRole } from "../../services/authService";
 
 interface SalesListProps {
   searchTerm: string;
@@ -39,15 +39,36 @@ export default function SalesList({ searchTerm }: SalesListProps) {
       setLoading(true);
       setError(null);
 
+      const currentUser = getUser();
+      const isSellerUser = isSellerRole();
+
       const [salesData, customersData, sellersData] = await Promise.all([
         getSales(),
         getCustomers(),
-        getSellers(),
+        // SELLER has no access to /api/sellers/ (403); uses own data from login
+        isSellerUser ? Promise.resolve([] as Seller[]) : getSellers(),
       ]);
 
       setSales(salesData);
       setCustomers(customersData);
-      setSellers(sellersData);
+
+      if (isSellerUser && currentUser?.seller_id) {
+        setSellers([
+          {
+            id: currentUser.seller_id,
+            user: currentUser.id,
+            first_name: currentUser.first_name ?? "",
+            last_name: currentUser.last_name ?? "",
+            full_name: `${currentUser.first_name ?? ""} ${currentUser.last_name ?? ""}`.trim(),
+            email: currentUser.email ?? "",
+            phone: "",
+            group: "SELLER",
+            is_active: true,
+          },
+        ]);
+      } else {
+        setSellers(sellersData);
+      }
     } catch (err) {
       console.error(err);
       setError("Erro ao carregar vendas.");

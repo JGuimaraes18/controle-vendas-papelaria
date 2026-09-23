@@ -2,7 +2,6 @@ from django.utils.dateparse import parse_date
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 from rest_framework import status
-from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -41,17 +40,13 @@ class SaleViewSet(ModelViewSet):
         else:
             serializer.save(seller=user.seller_profile)
 
-    def update(self, request, *args, **kwargs):
-        if not self._is_admin(request.user):
-            raise PermissionDenied("Vendedor não pode alterar venda.")
+    def perform_update(self, serializer):
+        user = self.request.user
 
-        return super().update(request, *args, **kwargs)
-
-    def destroy(self, request, *args, **kwargs):
-        if not self._is_admin(request.user):
-            raise PermissionDenied("Vendedor não pode excluir venda.")
-
-        return super().destroy(request, *args, **kwargs)
+        if self._is_admin(user):
+            serializer.save()
+        else:
+            serializer.save(seller=user.seller_profile)
 
 
 class CommissionRuleViewSet(ModelViewSet):
@@ -61,7 +56,7 @@ class CommissionRuleViewSet(ModelViewSet):
 
 
 class CommissionReportView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsAdminUserRole]
 
     @extend_schema(
         responses=CommissionReportSerializer(many=True),

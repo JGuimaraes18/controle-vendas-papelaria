@@ -55,19 +55,19 @@ const routes: AppRoute[] = [
     path: "/clientes",
     element: <CustomersPage />,
     title: "Clientes",
-    roles: ["ADMIN"],
+    roles: ["ADMIN", "SELLER"],
   },
   {
     path: "/clientes/novo",
     element: <CreateCustomer />,
     title: "Novo Cliente",
-    roles: ["ADMIN"],
+    roles: ["ADMIN", "SELLER"],
   },
   {
     path: "/clientes/editar/:id",
     element: <EditCustomer />,
     title: "Editar Cliente",
-    roles: ["ADMIN"],
+    roles: ["ADMIN", "SELLER"],
   },
   {
     path: "/comissoes",
@@ -79,7 +79,7 @@ const routes: AppRoute[] = [
     path: "/produtos",
     element: <ProductsPage />,
     title: "Produtos",
-    roles: ["ADMIN"],
+    roles: ["ADMIN", "SELLER"],
   },
   {
     path: "/produtos/novo",

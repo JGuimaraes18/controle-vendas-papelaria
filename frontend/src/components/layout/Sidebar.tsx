@@ -19,8 +19,12 @@ export default function Sidebar({ isOpen }: Props) {
     { label: "Vendas", icones: ShoppingCart, to: "/" },
     { label: "Clientes", icones: Users, to: "/clientes" },
     { label: "Produtos", icones: Package, to: "/produtos" },
-    { label: "Vendedores", icones: UserRound, to: "/vendedores" },
-    ...(isAdmin() ? [{ label: "Comissões", icones: Percent, to: "/comissoes" }] : []),
+    ...(isAdmin()
+      ? [
+          { label: "Vendedores", icones: UserRound, to: "/vendedores" },
+          { label: "Comissões", icones: Percent, to: "/comissoes" },
+        ]
+      : []),
   ];
 
   return (
