@@ -4,6 +4,24 @@ import { getSales, updateSale } from "../../services/salesService";
 import type { Sale } from "../../types/Sale";
 import SaleForm from "../../components/layout/ui/SaleForm";
 
+function extractErrorMessage(error: unknown): string {
+  const data = (error as { response?: { data?: unknown } })?.response?.data;
+
+  if (typeof data === "object" && data !== null) {
+    const body = data as { items?: unknown; detail?: unknown };
+
+    if (typeof body.items === "string") {
+      return body.items;
+    }
+
+    if (typeof body.detail === "string") {
+      return body.detail;
+    }
+  }
+
+  return "Erro ao atualizar venda!";
+}
+
 export default function EditSalePage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -30,7 +48,7 @@ export default function EditSalePage() {
     } catch (error) {
       navigate("/", {
         state: { 
-          message: "Erro ao atualizar venda!",
+          message: extractErrorMessage(error),
           type: "error"
          }
       });

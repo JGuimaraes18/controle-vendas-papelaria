@@ -2,6 +2,24 @@ import SaleForm from "../../components/layout/ui/SaleForm";
 import { createSale } from "../../services/salesService";
 import { useNavigate } from "react-router-dom";
 
+function extractErrorMessage(error: unknown): string {
+  const data = (error as { response?: { data?: unknown } })?.response?.data;
+
+  if (typeof data === "object" && data !== null) {
+    const body = data as { items?: unknown; detail?: unknown };
+
+    if (typeof body.items === "string") {
+      return body.items;
+    }
+
+    if (typeof body.detail === "string") {
+      return body.detail;
+    }
+  }
+
+  return "Erro ao criar venda!";
+}
+
 export default function CreateSalePage() {
   const navigate = useNavigate();
 
@@ -17,7 +35,7 @@ export default function CreateSalePage() {
     } catch (error) {
       navigate("/", {
         state: { 
-        message: "Erro ao criar venda!",
+        message: extractErrorMessage(error),
         type: "error"
         }
       });

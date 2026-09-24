@@ -2,12 +2,25 @@ import { useEffect, useState } from "react";
 import { X, History, User as UserIcon, CalendarClock } from "lucide-react";
 
 import { getSaleHistory } from "../../../services/salesService";
-import type { Sale, SaleChangeLog } from "../../../types/Sale";
+import type {
+  FieldChange,
+  Sale,
+  SaleChangeLog,
+} from "../../../types/Sale";
 import { saleStatusLabel } from "../../../utils/format";
 
 interface SaleHistoryModalProps {
   sale: Sale | null;
   onClose: () => void;
+}
+
+function isItemChange(
+  value: FieldChange
+): value is Extract<
+  FieldChange,
+  { added: unknown[]; removed: unknown[]; updated: unknown[] }
+> {
+  return "added" in value;
 }
 
 const FIELD_LABELS: Record<string, string> = {
@@ -16,6 +29,11 @@ const FIELD_LABELS: Record<string, string> = {
   items: "Itens",
   status: "Status",
 };
+
+const currencyFormatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
 
 function formatChangedField(key: string, value: unknown): string {
   if (key === "items" && Array.isArray(value)) {
@@ -31,6 +49,26 @@ function formatChangedField(key: string, value: unknown): string {
   }
 
   return String(value);
+}
+
+function ItemLine({
+  description,
+  quantity,
+  unitPrice,
+}: {
+  description: string;
+  quantity: number;
+  unitPrice: string;
+}) {
+  return (
+    <p className="text-[11px] text-slate-600 leading-snug">
+      <span className="font-semibold text-slate-800">{description}</span>
+      <span className="text-slate-400"> · Quantidade: </span>
+      {quantity}
+      <span className="text-slate-400"> · Unitário: </span>
+      {currencyFormatter.format(Number(unitPrice))}
+    </p>
+  );
 }
 
 export default function SaleHistoryModal({
@@ -136,26 +174,128 @@ export default function SaleHistoryModal({
                 ) : (
                   <div className="mt-1.5 space-y-0.5">
                     {Object.entries(log.fields_changed).map(
-                      ([field, change]) => (
-                        <div
-                          key={field}
-                          className="flex items-center gap-1.5 text-[11px] text-slate-500"
-                        >
-                          <span className="font-semibold text-slate-600">
-                            {FIELD_LABELS[field] || field}:
-                          </span>
-                          <span className="line-through decoration-rose-400 decoration-1">
-                            {formatChangedField(
-                              field,
-                              change.before
-                            )}
-                          </span>
-                          <span>→</span>
-                          <span className="font-medium text-teal-700">
-                            {formatChangedField(field, change.after)}
-                          </span>
-                        </div>
-                      )
+                      ([field, change]) => {
+                        if (
+                          field === "items" &&
+                          isItemChange(change)
+                        ) {
+                          return (
+                            <div
+                              key={field}
+                              className="space-y-1 pt-0.5"
+                            >
+                              <p className="text-[11px] font-semibold text-slate-600">
+                                Itens
+                              </p>
+
+                              {change.added.length > 0 && (
+                                <div className="space-y-0.5 border-l-2 border-emerald-200 pl-2">
+                                  <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">
+                                    Itens adicionados
+                                  </p>
+                                  {change.added.map((item) => (
+                                    <ItemLine
+                                      key={item.product}
+                                      description={item.product_description}
+                                      quantity={item.quantity}
+                                      unitPrice={item.unit_price}
+                                    />
+                                  ))}
+                                </div>
+                              )}
+
+                              {change.removed.length > 0 && (
+                                <div className="space-y-0.5 border-l-2 border-rose-200 pl-2">
+                                  <p className="text-[10px] font-semibold text-rose-500 uppercase tracking-wide">
+                                    Itens removidos
+                                  </p>
+                                  {change.removed.map((item) => (
+                                    <ItemLine
+                                      key={item.product}
+                                      description={item.product_description}
+                                      quantity={item.quantity}
+                                      unitPrice={item.unit_price}
+                                    />
+                                  ))}
+                                </div>
+                              )}
+
+                              {change.updated.length > 0 && (
+                                <div className="space-y-0.5 border-l-2 border-teal-200 pl-2">
+                                  <p className="text-[10px] font-semibold text-teal-600 uppercase tracking-wide">
+                                    Quantidade alterada
+                                  </p>
+                                  {change.updated.map((item) => {
+                                    const priceChanged =
+                                      item.before.unit_price !==
+                                      item.after.unit_price;
+
+                                    return (
+                                      <div key={item.product}>
+                                        <p className="text-[11px] leading-snug">
+                                          <span className="font-semibold text-slate-800">
+                                            {item.product_description}
+                                          </span>{" "}
+                                          <span className="line-through decoration-rose-400 decoration-1 text-slate-400">
+                                            {item.before.quantity}
+                                          </span>{" "}
+                                          <span>→</span>{" "}
+                                          <span className="font-medium text-teal-700">
+                                            {item.after.quantity}
+                                          </span>
+                                        </p>
+                                        {priceChanged && (
+                                          <p className="text-[10px] text-slate-500">
+                                            Unitário:{" "}
+                                            <span className="line-through decoration-rose-400 decoration-1">
+                                              {currencyFormatter.format(
+                                                Number(
+                                                  item.before.unit_price
+                                                )
+                                              )}
+                                            </span>{" "}
+                                            →{" "}
+                                            <span className="font-medium text-teal-700">
+                                              {currencyFormatter.format(
+                                                Number(
+                                                  item.after.unit_price
+                                                )
+                                              )}
+                                            </span>
+                                          </p>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
+
+                        const simple = change as {
+                          before?: unknown;
+                          after?: unknown;
+                        };
+
+                        return (
+                          <div
+                            key={field}
+                            className="flex items-center gap-1.5 text-[11px] text-slate-500"
+                          >
+                            <span className="font-semibold text-slate-600">
+                              {FIELD_LABELS[field] || field}:
+                            </span>
+                            <span className="line-through decoration-rose-400 decoration-1">
+                              {formatChangedField(field, simple.before)}
+                            </span>
+                            <span>→</span>
+                            <span className="font-medium text-teal-700">
+                              {formatChangedField(field, simple.after)}
+                            </span>
+                          </div>
+                        );
+                      }
                     )}
                   </div>
                 )}

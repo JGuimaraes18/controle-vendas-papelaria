@@ -1,3 +1,6 @@
+from collections import defaultdict
+
+from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from drf_spectacular.utils import extend_schema, OpenApiParameter
@@ -11,6 +14,7 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
 from apps.sales.services.commission_service import calculate_commissions
+from apps.sales.services.stock_service import apply_stock_deltas, lock_products
 from core.permissions import IsAdminUserRole, IsOwnerSale
 
 from .models import CommissionRule, Sale, SaleChangeLog
@@ -86,51 +90,65 @@ class SaleViewSet(ModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="cancel")
     def cancel(self, request, pk=None):
-        sale = self.get_object()
+        self.get_object()
 
         if not self._is_admin(request.user):
             raise PermissionDenied(
                 {"detail": "Somente administradores podem cancelar vendas."}
             )
 
-        if sale.status == Sale.STATUS_CANCELLED:
-            return Response(
-                {"detail": "A venda já está cancelada."},
-                status=status.HTTP_400_BAD_REQUEST,
+        with transaction.atomic():
+            sale = Sale.objects.select_for_update().get(pk=pk)
+
+            if sale.status == Sale.STATUS_CANCELLED:
+                return Response(
+                    {"detail": "A venda já está cancelada."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            raw_reason = request.data.get("reason")
+            reason = raw_reason.strip() if isinstance(raw_reason, str) else ""
+
+            if len(reason) < 10:
+                return Response(
+                    {"detail": "A justificativa é obrigatória e deve ter no mínimo 10 caracteres."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            quantities = defaultdict(int)
+
+            for item in sale.items.all():
+                quantities[item.product_id] += item.quantity
+
+            if quantities:
+                lock_products(quantities.keys())
+                apply_stock_deltas(
+                    {product_id: -quantity for product_id, quantity in quantities.items()}
+                )
+
+            sale.status = Sale.STATUS_CANCELLED
+            sale.cancelled_by = request.user
+            sale.cancelled_at = timezone.now()
+            sale.cancellation_reason = reason
+            sale.save(
+                update_fields=[
+                    "status",
+                    "cancelled_by",
+                    "cancelled_at",
+                    "cancellation_reason",
+                ]
             )
 
-        raw_reason = request.data.get("reason")
-        reason = raw_reason.strip() if isinstance(raw_reason, str) else ""
-
-        if len(reason) < 10:
-            return Response(
-                {"detail": "A justificativa é obrigatória e deve ter no mínimo 10 caracteres."},
-                status=status.HTTP_400_BAD_REQUEST,
+            SaleChangeLog.objects.create(
+                sale=sale,
+                user=request.user,
+                fields_changed={
+                    "status": {
+                        "before": Sale.STATUS_COMPLETED,
+                        "after": Sale.STATUS_CANCELLED,
+                    }
+                },
             )
-
-        sale.status = Sale.STATUS_CANCELLED
-        sale.cancelled_by = request.user
-        sale.cancelled_at = timezone.now()
-        sale.cancellation_reason = reason
-        sale.save(
-            update_fields=[
-                "status",
-                "cancelled_by",
-                "cancelled_at",
-                "cancellation_reason",
-            ]
-        )
-
-        SaleChangeLog.objects.create(
-            sale=sale,
-            user=request.user,
-            fields_changed={
-                "status": {
-                    "before": Sale.STATUS_COMPLETED,
-                    "after": Sale.STATUS_CANCELLED,
-                }
-            },
-        )
 
         serializer = self.get_serializer(sale)
         return Response(serializer.data, status=status.HTTP_200_OK)

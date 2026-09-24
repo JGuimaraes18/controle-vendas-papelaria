@@ -45,3 +45,23 @@ class ProductModelTest(TestCase):
 
         with self.assertRaises(ValidationError):
             product.full_clean()
+
+    def test_stock_defaults_to_zero(self):
+        product = Product.objects.create(
+            description="Produto Teste",
+            unit_price=Decimal("50.00"),
+            commission_percent=Decimal("5.00"),
+        )
+
+        self.assertEqual(product.stock_quantity, 0)
+
+    def test_stock_quantity_cannot_be_negative(self):
+        product = Product(
+            description="Produto Inválido",
+            unit_price=Decimal("100.00"),
+            commission_percent=Decimal("5.00"),
+            stock_quantity=-1,
+        )
+
+        with self.assertRaises(ValidationError):
+            product.full_clean()

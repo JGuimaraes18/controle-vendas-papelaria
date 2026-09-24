@@ -1,5 +1,6 @@
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.db.models import Q
 
 
 class Product(models.Model):
@@ -14,9 +15,19 @@ class Product(models.Model):
             MaxValueValidator(10),
         ],
     )
+    stock_quantity = models.PositiveIntegerField(
+        default=0,
+        validators=[MinValueValidator(0)],
+    )
 
     class Meta:
         ordering = ["description"]
+        constraints = [
+            models.CheckConstraint(
+                check=Q(stock_quantity__gte=0),
+                name="product_stock_quantity_non_negative",
+            ),
+        ]
 
     def save(self, *args, **kwargs):
         is_new = self.pk is None

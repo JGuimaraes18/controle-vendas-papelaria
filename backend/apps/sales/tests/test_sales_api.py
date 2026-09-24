@@ -29,6 +29,7 @@ class TesteSaleAPI(APITestCase):
             description="Produto Teste",
             unit_price=Decimal("100.00"),
             commission_percent=Decimal("5.00"),
+            stock_quantity=100,
         )
 
         refresh = RefreshToken.for_user(self.user)
@@ -129,6 +130,7 @@ class SaleAuthorizationTest(APITestCase):
             description="Produto Teste",
             unit_price=Decimal("100.00"),
             commission_percent=Decimal("5.00"),
+            stock_quantity=100,
         )
 
         self.sale_seller1 = Sale.objects.create(
@@ -313,6 +315,7 @@ class SaleChangeLogTest(APITestCase):
             description="Produto Teste",
             unit_price=Decimal("100.00"),
             commission_percent=Decimal("5.00"),
+            stock_quantity=100,
         )
 
         self.sale = Sale.objects.create(
@@ -568,6 +571,7 @@ class SaleCancellationTest(APITestCase):
             description="Produto Teste",
             unit_price=Decimal("100.00"),
             commission_percent=Decimal("5.00"),
+            stock_quantity=100,
         )
 
         self.sale = Sale.objects.create(
@@ -796,3 +800,335 @@ class SaleCancellationTest(APITestCase):
         self.assertEqual(
             response.data[0]["fields_changed"]["status"]["after"], "CANCELLED"
         )
+
+
+class SaleStockConsumptionTest(APITestCase):
+
+    def setUp(self):
+        admin_group, _ = Group.objects.get_or_create(name="ADMIN")
+
+        self.admin = User.objects.create_user(
+            email="admin@email.com",
+            password="123456",
+        )
+        self.admin.groups.add(admin_group)
+
+        self.seller_profile = Seller.objects.create(
+            user=User.objects.create_user(
+                email="vendedor@email.com", password="123456"
+            ),
+            phone="11955555555",
+        )
+
+        self.customer = Customer.objects.create(name="Cliente Teste")
+
+        self.product = Product.objects.create(
+            description="Produto Teste",
+            unit_price=Decimal("100.00"),
+            commission_percent=Decimal("5.00"),
+            stock_quantity=100,
+        )
+
+        self.other_product = Product.objects.create(
+            description="Outro Produto",
+            unit_price=Decimal("50.00"),
+            commission_percent=Decimal("5.00"),
+            stock_quantity=100,
+        )
+
+        refresh = RefreshToken.for_user(self.admin)
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}"
+        )
+
+    def _payload(self, items=None):
+        return {
+            "customer": self.customer.id,
+            "seller": self.seller_profile.id,
+            "items": items
+            or [{"product": self.product.id, "quantity": 2}],
+        }
+
+    def _stock(self, product=None):
+        return Product.objects.get(pk=(product or self.product).pk).stock_quantity
+
+    def test_create_decrements_stock(self):
+        response = self.client.post(
+            "/api/sales/", self._payload(), format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(self._stock(), 98)
+
+    def test_create_with_insufficient_stock_fails_without_side_effects(self):
+        response = self.client.post(
+            "/api/sales/",
+            self._payload(
+                items=[{"product": self.product.id, "quantity": 150}]
+            ),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self._stock(), 100)
+        self.assertEqual(Sale.objects.count(), 0)
+        self.assertEqual(SaleChangeLog.objects.count(), 0)
+        self.assertIn("Estoque insuficiente", str(response.data["items"]))
+
+    def test_create_rejects_negative_quantities(self):
+        response = self.client.post(
+            "/api/sales/",
+            self._payload(
+                items=[{"product": self.product.id, "quantity": -3}]
+            ),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self._stock(), 100)
+
+    def test_update_increase_decrements_stock(self):
+        self.client.post("/api/sales/", self._payload(), format="json")
+
+        sale = Sale.objects.get()
+        self.assertEqual(self._stock(), 98)
+
+        response = self.client.put(
+            f"/api/sales/{sale.id}/",
+            self._payload(
+                items=[{"product": self.product.id, "quantity": 5}]
+            ),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self._stock(), 95)
+        self.assertEqual(sale.items.get().quantity, 5)
+
+    def test_update_decrease_returns_stock(self):
+        self.client.post(
+            "/api/sales/",
+            self._payload(
+                items=[{"product": self.product.id, "quantity": 5}]
+            ),
+            format="json",
+        )
+
+        sale = Sale.objects.get()
+        self.assertEqual(self._stock(), 95)
+
+        response = self.client.put(
+            f"/api/sales/{sale.id}/", self._payload(), format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self._stock(), 98)
+        self.assertEqual(sale.items.get().quantity, 2)
+
+    def test_update_with_insufficient_stock_fails_keep_totals(self):
+        self.client.post("/api/sales/", self._payload(), format="json")
+
+        sale = Sale.objects.get()
+        self.assertEqual(self._stock(), 98)
+
+        response = self.client.put(
+            f"/api/sales/{sale.id}/",
+            self._payload(
+                items=[{"product": self.product.id, "quantity": 150}]
+            ),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self._stock(), 98)
+        self.assertEqual(sale.items.get().quantity, 2)
+        self.assertEqual(SaleChangeLog.objects.count(), 0)
+
+    def test_cancel_returns_stock(self):
+        self.client.post("/api/sales/", self._payload(), format="json")
+
+        sale = Sale.objects.get()
+        self.assertEqual(self._stock(), 98)
+
+        response = self.client.post(
+            f"/api/sales/{sale.id}/cancel/",
+            {"reason": "Cliente solicitou cancelamento do pedido."},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self._stock(), 100)
+        sale.refresh_from_db()
+        self.assertEqual(sale.status, Sale.STATUS_CANCELLED)
+
+    def test_cancel_sale_without_items_leaves_stock_untouched(self):
+        sale = Sale.objects.create(
+            customer=self.customer,
+            seller=self.seller_profile,
+        )
+        stock_before = self._stock()
+        for product in (self.product, self.other_product):
+            self.assertEqual(self._stock(product), 100)
+
+        response = self.client.post(
+            f"/api/sales/{sale.id}/cancel/",
+            {"reason": "Cliente solicitou cancelamento do pedido."},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self._stock(), stock_before)
+
+
+class SaleHistoryDetailTest(APITestCase):
+
+    def setUp(self):
+        admin_group, _ = Group.objects.get_or_create(name="ADMIN")
+
+        self.admin = User.objects.create_user(
+            email="admin@email.com",
+            password="123456",
+        )
+        self.admin.groups.add(admin_group)
+
+        self.seller_profile = Seller.objects.create(
+            user=User.objects.create_user(
+                email="vendedor@email.com", password="123456"
+            ),
+            phone="11955555555",
+        )
+
+        self.customer = Customer.objects.create(name="Cliente Teste")
+
+        self.product_a = Product.objects.create(
+            description="Produto A",
+            unit_price=Decimal("100.00"),
+            commission_percent=Decimal("5.00"),
+            stock_quantity=100,
+        )
+
+        self.product_b = Product.objects.create(
+            description="Produto B",
+            unit_price=Decimal("50.00"),
+            commission_percent=Decimal("5.00"),
+            stock_quantity=100,
+        )
+
+        refresh = RefreshToken.for_user(self.admin)
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}"
+        )
+
+        self.sale = Sale.objects.create(
+            customer=self.customer,
+            seller=self.seller_profile,
+        )
+
+    def _items(self, pairs):
+        return [
+            {"product": product_id, "quantity": quantity}
+            for product_id, quantity in pairs
+        ]
+
+    def test_update_records_added_removed_and_updated_items(self):
+        self.client.put(
+            f"/api/sales/{self.sale.id}/",
+            {
+                "customer": self.customer.id,
+                "seller": self.seller_profile.id,
+                "items": self._items([(self.product_a.id, 2)]),
+            },
+            format="json",
+        )
+
+        self.client.put(
+            f"/api/sales/{self.sale.id}/",
+            {
+                "customer": self.customer.id,
+                "seller": self.seller_profile.id,
+                "items": self._items(
+                    [(self.product_b.id, 3), (self.product_a.id, 1)]
+                ),
+            },
+            format="json",
+        )
+
+        log = SaleChangeLog.objects.filter(sale=self.sale).latest("changed_at")
+        items_diff = log.fields_changed["items"]
+
+        self.assertEqual(len(items_diff["added"]), 1)
+        self.assertEqual(
+            items_diff["added"][0]["product_description"], "Produto B"
+        )
+        self.assertEqual(items_diff["added"][0]["quantity"], 3)
+
+        self.assertEqual(items_diff["removed"], [])
+
+        self.assertEqual(len(items_diff["updated"]), 1)
+        updated = items_diff["updated"][0]
+        self.assertEqual(updated["product"], self.product_a.id)
+        self.assertEqual(updated["product_description"], "Produto A")
+        self.assertEqual(
+            updated["before"], {"quantity": 2, "unit_price": "100.00"}
+        )
+        self.assertEqual(
+            updated["after"], {"quantity": 1, "unit_price": "100.00"}
+        )
+
+    def test_update_records_removed_item(self):
+        self.client.put(
+            f"/api/sales/{self.sale.id}/",
+            {
+                "customer": self.customer.id,
+                "seller": self.seller_profile.id,
+                "items": self._items(
+                    [(self.product_a.id, 2), (self.product_b.id, 1)]
+                ),
+            },
+            format="json",
+        )
+
+        self.client.put(
+            f"/api/sales/{self.sale.id}/",
+            {
+                "customer": self.customer.id,
+                "seller": self.seller_profile.id,
+                "items": self._items([(self.product_a.id, 2)]),
+            },
+            format="json",
+        )
+
+        log = SaleChangeLog.objects.filter(sale=self.sale).latest("changed_at")
+        items_diff = log.fields_changed["items"]
+
+        self.assertEqual(items_diff["added"], [])
+        self.assertEqual(len(items_diff["removed"]), 1)
+        self.assertEqual(
+            items_diff["removed"][0]["product_description"], "Produto B"
+        )
+        self.assertEqual(items_diff["removed"][0]["quantity"], 1)
+
+    def test_update_without_item_changes_does_not_record_items(self):
+        self.client.put(
+            f"/api/sales/{self.sale.id}/",
+            {
+                "customer": self.customer.id,
+                "seller": self.seller_profile.id,
+                "items": self._items([(self.product_a.id, 2)]),
+            },
+            format="json",
+        )
+
+        # Envia a mesma venda inalterada
+        self.client.put(
+            f"/api/sales/{self.sale.id}/",
+            {
+                "customer": self.customer.id,
+                "seller": self.seller_profile.id,
+                "items": self._items([(self.product_a.id, 2)]),
+            },
+            format="json",
+        )
+
+        log = SaleChangeLog.objects.filter(sale=self.sale).latest("changed_at")
+        self.assertNotIn("items", log.fields_changed)

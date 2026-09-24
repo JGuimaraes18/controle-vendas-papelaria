@@ -3,9 +3,16 @@ import { Search, Calendar } from "lucide-react";
 import { getCommissionReport } from "../../services/commissionService";
 import type { CommissionReport } from "../../types/Commission";
 
+const todayISO = () => {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+};
+
 export default function CommissionPage() {
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState(todayISO);
+  const [endDate, setEndDate] = useState(todayISO);
   const [reportData, setReportData] = useState<CommissionReport[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);

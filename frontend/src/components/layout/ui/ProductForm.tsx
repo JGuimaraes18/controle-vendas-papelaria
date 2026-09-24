@@ -6,9 +6,14 @@ import {
   Percent,
   Hash,
   FileText,
+  Boxes,
 } from "lucide-react";
 
 import type { Product } from "../../../types/Product";
+import {
+  formatCurrencyInput,
+  parseCurrencyInput,
+} from "../../../utils/format";
 
 interface ProductFormProps {
   initialData?: Product | null;
@@ -29,19 +34,29 @@ export default function ProductForm({
     initialData?.description || ""
   );
   const [unitPrice, setUnitPrice] = useState(
-    initialData?.unit_price || ""
+    formatCurrencyInput(initialData?.unit_price || "")
   );
   const [commissionPercent, setCommissionPercent] = useState(
     initialData?.commission_percent || ""
+  );
+  const [stockQuantity, setStockQuantity] = useState(
+    initialData?.stock_quantity != null
+      ? String(initialData.stock_quantity)
+      : ""
   );
 
   const [formError, setFormError] = useState(false);
 
   useEffect(() => {
     setDescription(initialData?.description || "");
-    setUnitPrice(initialData?.unit_price || "");
+    setUnitPrice(formatCurrencyInput(initialData?.unit_price || ""));
     setCommissionPercent(
       initialData?.commission_percent || ""
+    );
+    setStockQuantity(
+      initialData?.stock_quantity != null
+        ? String(initialData.stock_quantity)
+        : ""
     );
   }, [initialData]);
 
@@ -49,7 +64,8 @@ export default function ProductForm({
     if (
       !description.trim() ||
       !unitPrice.trim() ||
-      !commissionPercent.trim()
+      !commissionPercent.trim() ||
+      !stockQuantity.trim()
     ) {
       setFormError(true);
       return;
@@ -59,8 +75,9 @@ export default function ProductForm({
 
     await onSave({
       description: description.trim(),
-      unit_price: unitPrice.trim(),
+      unit_price: parseCurrencyInput(unitPrice),
       commission_percent: commissionPercent.trim(),
+      stock_quantity: Number(stockQuantity),
     });
   };
 
@@ -138,14 +155,13 @@ export default function ProductForm({
 
             <div className="relative">
               <input
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 value={unitPrice}
                 onChange={(e) =>
-                  setUnitPrice(e.target.value)
+                  setUnitPrice(formatCurrencyInput(e.target.value))
                 }
-                placeholder="0.00"
+                placeholder="0,00"
                 className={`w-full text-xs border rounded-lg px-3 py-2 pl-8 outline-none bg-slate-50/50 focus:border-teal-600 transition-all ${
                   formError && !unitPrice.trim()
                     ? "border-rose-400 bg-rose-50/50"
@@ -183,6 +199,35 @@ export default function ProductForm({
               />
 
               <Percent
+                size={14}
+                className="absolute left-2.5 top-2.5 text-slate-400"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+              Estoque Inicial
+            </label>
+
+            <div className="relative">
+              <input
+                type="number"
+                step="1"
+                min="0"
+                value={stockQuantity}
+                onChange={(e) =>
+                  setStockQuantity(e.target.value)
+                }
+                placeholder="0"
+                className={`w-full text-xs border rounded-lg px-3 py-2 pl-8 outline-none bg-slate-50/50 focus:border-teal-600 transition-all ${
+                  formError && !stockQuantity.trim()
+                    ? "border-rose-400 bg-rose-50/50"
+                    : "border-slate-200"
+                }`}
+              />
+
+              <Boxes
                 size={14}
                 className="absolute left-2.5 top-2.5 text-slate-400"
               />

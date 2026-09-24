@@ -48,11 +48,33 @@ export interface SaleCreatePayload {
   items: SaleItemPayload[];
 }
 
+export interface ItemSnapshot {
+  product: number;
+  product_description: string;
+  quantity: number;
+  unit_price: string;
+}
+
+export interface UpdatedItemSnapshot {
+  product: number;
+  product_description: string;
+  before: { quantity: number; unit_price: string };
+  after: { quantity: number; unit_price: string };
+}
+
+export type FieldChange =
+  | { before: unknown; after: unknown }
+  | {
+      added: ItemSnapshot[];
+      removed: ItemSnapshot[];
+      updated: UpdatedItemSnapshot[];
+    };
+
 export interface SaleChangeLog {
   id: number;
   sale: number;
   user: number;
   user_name: string;
   changed_at: string;
-  fields_changed: Record<string, { before: unknown; after: unknown }>;
+  fields_changed: Record<string, FieldChange>;
 }

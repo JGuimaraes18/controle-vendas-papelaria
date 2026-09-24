@@ -4,4 +4,5 @@ export interface Product {
   description: string;
   unit_price: string;
   commission_percent: string;
+  stock_quantity: number;
 }

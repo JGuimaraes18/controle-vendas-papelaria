@@ -34,3 +34,16 @@ class ProductSerializerTest(TestCase):
 
         self.assertFalse(serializer.is_valid())
         self.assertIn("commission_percent", serializer.errors)
+
+    def test_serializer_accepts_stock_quantity(self):
+        data = {
+            "description": "Produto Teste",
+            "unit_price": "100.00",
+            "commission_percent": "5.00",
+            "stock_quantity": 42,
+        }
+
+        serializer = ProductSerializer(data=data)
+
+        self.assertTrue(serializer.is_valid())
+        self.assertEqual(serializer.validated_data["stock_quantity"], 42)

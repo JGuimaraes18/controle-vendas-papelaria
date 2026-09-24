@@ -11,6 +11,29 @@ export function formatPhone(value: string): string {
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }
 
+export function formatCurrencyInput(value: string): string {
+  const digits = (value || "").replace(/\D/g, "");
+
+  if (digits.length === 0) return "";
+
+  const cents = parseInt(digits, 10);
+
+  return (cents / 100).toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+export function parseCurrencyInput(value: string): string {
+  const digits = (value || "").replace(/\D/g, "");
+
+  if (digits.length === 0) return "0.00";
+
+  const cents = parseInt(digits, 10);
+
+  return (cents / 100).toFixed(2);
+}
+
 export function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((value || "").trim());
 }

@@ -21,7 +21,12 @@ interface ProductListProps {
   searchTerm: string;
 }
 
-type ProductSortKey = "code" | "description" | "unit_price" | "commission_percent";
+type ProductSortKey =
+  | "code"
+  | "description"
+  | "unit_price"
+  | "commission_percent"
+  | "stock_quantity";
 
 export default function ProductList({
   searchTerm,
@@ -92,6 +97,9 @@ export default function ProductList({
           break;
         case "commission_percent":
           cmp = Number(a.commission_percent) - Number(b.commission_percent);
+          break;
+        case "stock_quantity":
+          cmp = a.stock_quantity - b.stock_quantity;
           break;
         case "description":
         default:
@@ -193,21 +201,28 @@ export default function ProductList({
                   active={sortKey === "description"}
                   direction={sortDir}
                   onSort={() => toggleSort("description")}
-                  className="p-2.5 w-[40%]"
+                  className="p-2.5 w-[30%]"
                 />
                 <SortableTh
                   label="Preço Unitário"
                   active={sortKey === "unit_price"}
                   direction={sortDir}
                   onSort={() => toggleSort("unit_price")}
-                  className="p-2.5 w-[18%]"
+                  className="p-2.5 w-[16%]"
                 />
                 <SortableTh
                   label="Comissão"
                   active={sortKey === "commission_percent"}
                   direction={sortDir}
                   onSort={() => toggleSort("commission_percent")}
-                  className="p-2.5 w-[17%]"
+                  className="p-2.5 w-[14%]"
+                />
+                <SortableTh
+                  label="Estoque"
+                  active={sortKey === "stock_quantity"}
+                  direction={sortDir}
+                  onSort={() => toggleSort("stock_quantity")}
+                  className="p-2.5 w-[15%]"
                 />
                 <th className="p-2.5 w-[15%] text-center">
                   {admin ? "Ação" : ""}
@@ -218,10 +233,7 @@ export default function ProductList({
             <tbody className="divide-y divide-slate-50 text-xs">
               {sortedProducts.length === 0 ? (
                 <tr>
-                  <td
-                    colSpan={5}
-                    className="p-8 text-center text-slate-400 text-[11px]"
-                  >
+                  <td colSpan={6} className="p-8 text-center text-slate-400 text-[11px]">
                     {searchTerm
                       ? "Nenhum produto encontrado."
                       : "Nenhum produto cadastrado."}
@@ -264,6 +276,18 @@ export default function ProductList({
                       <div className="flex items-center gap-1.5">
                         {product.commission_percent}%
                       </div>
+                    </td>
+
+                    <td className="p-2.5 text-slate-500">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                          product.stock_quantity > 0
+                            ? "bg-teal-50 text-teal-700"
+                            : "bg-rose-50 text-rose-600"
+                        }`}
+                      >
+                        {product.stock_quantity} un.
+                      </span>
                     </td>
 
                     <td className="p-2.5">

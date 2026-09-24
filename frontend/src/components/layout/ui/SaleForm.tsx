@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Pencil, Trash2, Search, Plus, Calendar, User, ShoppingBag, Ban } from "lucide-react";
 import { getCustomers } from "../../../services/customerService";
@@ -125,6 +125,8 @@ export default function SaleForm({ initialData, onSave, title }: SaleFormProps) 
   };
 
   const handleSelectProduct = (p: Product) => {
+    if (availableFor(p.id) <= 0) return;
+
     setSearchQuery(p.description);
     setSelectedProduct(p);
     setShowSuggestions(false);
@@ -147,6 +149,13 @@ export default function SaleForm({ initialData, onSave, title }: SaleFormProps) 
 
   const handleAddItem = () => {
     if (!selectedProduct) return;
+
+    if (availableFor(selectedProduct.id) <= 0) {
+      setSearchQuery("");
+      setSelectedProduct(null);
+      setShowSuggestions(false);
+      return;
+    }
     const unitPrice = parseFloat(selectedProduct.unit_price);
     const newItem: SaleItem = {
       id: Math.random(),
@@ -163,6 +172,43 @@ export default function SaleForm({ initialData, onSave, title }: SaleFormProps) 
   };
 
   const totalGeral = items.reduce((acc, item) => acc + item.total_value, 0);
+
+  // Qtde persistida por produto na venda atual (edit mode)
+  const persistedQtys = useMemo(() => {
+    const map: Record<number, number> = {};
+
+    (initialData?.items || []).forEach((item) => {
+      const productId =
+        typeof item.product === "object"
+          ? (item.product as any).id
+          : Number(item.product);
+      map[productId] = (map[productId] || 0) + item.quantity;
+    });
+
+    return map;
+  }, [initialData]);
+
+  // Qtde alocada no carrinho atual por produto
+  const cartQtys = useMemo(() => {
+    const map: Record<number, number> = {};
+
+    items.forEach((item) => {
+      map[item.product] = (map[item.product] || 0) + item.quantity;
+    });
+
+    return map;
+  }, [items]);
+
+  // Disponibilidade efetiva = estoque + qty antiga da venda - qty já alocada
+  const availableFor = (productId: number) => {
+    const product = products.find((p) => p.id === productId);
+    if (!product) return 0;
+    return (
+      (product.stock_quantity || 0) +
+      (persistedQtys[productId] || 0) -
+      (cartQtys[productId] || 0)
+    );
+  };
 
   const handleUpdateQuantity = (index: number, newQuantity: number) => {
     const updated = [...items];
@@ -236,15 +282,34 @@ export default function SaleForm({ initialData, onSave, title }: SaleFormProps) 
               
               {showSuggestions && filteredProducts.length > 0 && (
                 <div className="absolute z-50 w-full bg-white border border-slate-100 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto" ref={suggestionRef}>
-                  {filteredProducts.map((p, idx) => (
-                    <div key={p.id} onClick={() => handleSelectProduct(p)} className={`px-3 py-2 cursor-pointer flex justify-between items-center border-b border-slate-50 last:border-0 text-xs ${focusedIndex === idx ? "bg-teal-50" : "hover:bg-slate-50"}`}>
-                      <div>
-                        <p className="font-semibold text-slate-800">{p.description}</p>
-                        <p className="text-[9px] text-slate-400 uppercase">CÓD: {p.code}</p>
+                  {filteredProducts.map((p, idx) => {
+                    const unavailable = availableFor(p.id) <= 0;
+
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => handleSelectProduct(p)}
+                        className={`px-3 py-2 flex justify-between items-center border-b border-slate-50 last:border-0 text-xs ${
+                          unavailable
+                            ? "opacity-50 cursor-not-allowed"
+                            : `cursor-pointer ${focusedIndex === idx ? "bg-teal-50" : "hover:bg-slate-50"}`
+                        }`}
+                      >
+                        <div>
+                          <p className="font-semibold text-slate-800">{p.description}</p>
+                          <p className="text-[9px] text-slate-400 uppercase">CÓD: {p.code}</p>
+                          {unavailable ? (
+                            <p className="text-[10px] font-semibold text-rose-500">Sem estoque</p>
+                          ) : (
+                            <p className="text-[10px] font-medium text-teal-600">
+                              Disponível: {availableFor(p.id)} un.
+                            </p>
+                          )}
+                        </div>
+                        <span className="text-teal-600 font-bold">R$ {parseFloat(p.unit_price).toFixed(2)}</span>
                       </div>
-                      <span className="text-teal-600 font-bold">R$ {parseFloat(p.unit_price).toFixed(2)}</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -282,7 +347,15 @@ export default function SaleForm({ initialData, onSave, title }: SaleFormProps) 
                 ) : (
                   items.map((item, idx) => (
                     <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="p-2 text-slate-800 font-medium truncate">{item.product_description}</td>
+                      <td className="p-2 text-slate-800 font-medium truncate">
+                        {item.product_description}
+                        {availableFor(item.product) < 0 && (
+                          <p className="text-[10px] text-rose-500 font-semibold mt-0.5">
+                            Estoque insuficiente — disponível:{" "}
+                            {Math.max(0, availableFor(item.product))}
+                          </p>
+                        )}
+                      </td>
                       <td className="p-2 text-center">
                         {editingIndex === idx ? (
                           <input

@@ -1,9 +1,14 @@
+from collections import defaultdict
 from decimal import Decimal
 
+from django.db import transaction
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.sales.models import Sale, SaleChangeLog, SaleItem
+from apps.sales.services.stock_service import (StockInsufficientError,
+                                               apply_stock_deltas,
+                                               lock_products)
 
 from .models import CommissionRule
 
@@ -74,18 +79,36 @@ class SaleSerializer(serializers.ModelSerializer):
             f"{obj.cancelled_by.last_name}"
         ).strip() or obj.cancelled_by.email
 
+    def _stocks_consumption(self, items_data):
+        quantities = defaultdict(int)
+
+        for item_data in items_data:
+            quantities[item_data["product"].id] += item_data["quantity"]
+
+        return quantities
+
     def create(self, validated_data):
         items_data = validated_data.pop("items")
 
-        sale = Sale.objects.create(**validated_data)
+        with transaction.atomic():
+            quantities = self._stocks_consumption(items_data)
 
-        for item_data in items_data:
-            SaleItem.objects.create(
-                sale=sale,
-                product=item_data["product"],
-                quantity=item_data["quantity"],
-                unit_price=item_data["product"].unit_price,
-            )
+            lock_products(quantities.keys())
+
+            try:
+                apply_stock_deltas(quantities)
+            except StockInsufficientError as exc:
+                raise serializers.ValidationError({"items": str(exc)}) from exc
+
+            sale = Sale.objects.create(**validated_data)
+
+            for item_data in items_data:
+                SaleItem.objects.create(
+                    sale=sale,
+                    product=item_data["product"],
+                    quantity=item_data["quantity"],
+                    unit_price=item_data["product"].unit_price,
+                )
 
         return sale
 
@@ -94,9 +117,63 @@ class SaleSerializer(serializers.ModelSerializer):
             "customer": sale.customer_id,
             "seller": sale.seller_id,
             "items": [
-                {"product": item.product_id, "quantity": item.quantity}
-                for item in sale.items.all()
+                {
+                    "product": item.product_id,
+                    "product_description": item.product.description,
+                    "quantity": item.quantity,
+                    "unit_price": str(item.unit_price),
+                }
+                for item in sale.items.all().select_related("product")
             ],
+        }
+
+    def _diff_items(self, before, after):
+        before_by_product = {item["product"]: item for item in before}
+        after_by_product = {item["product"]: item for item in after}
+
+        changed = False
+        added = []
+        removed = []
+        updated = []
+
+        for product_id, item in after_by_product.items():
+            previous = before_by_product.get(product_id)
+
+            if previous is None:
+                changed = True
+                added.append(item)
+            elif (
+                previous["quantity"] != item["quantity"]
+                or previous["unit_price"] != item["unit_price"]
+            ):
+                changed = True
+                updated.append(
+                    {
+                        "product": product_id,
+                        "product_description": item["product_description"],
+                        "before": {
+                            "quantity": previous["quantity"],
+                            "unit_price": previous["unit_price"],
+                        },
+                        "after": {
+                            "quantity": item["quantity"],
+                            "unit_price": item["unit_price"],
+                        },
+                    }
+                )
+
+        for product_id, item in before_by_product.items():
+            if product_id not in after_by_product:
+                changed = True
+                removed.append(item)
+
+        if not changed:
+            return None
+
+        return {
+            "added": added,
+            "removed": removed,
+            "updated": updated,
         }
 
     def _diff(self, before, after):
@@ -109,11 +186,10 @@ class SaleSerializer(serializers.ModelSerializer):
                     "after": after[key],
                 }
 
-        if before["items"] != after["items"]:
-            fields["items"] = {
-                "before": before["items"],
-                "after": after["items"],
-            }
+        items_diff = self._diff_items(before["items"], after["items"])
+
+        if items_diff is not None:
+            fields["items"] = items_diff
 
         return fields
 
@@ -125,33 +201,61 @@ class SaleSerializer(serializers.ModelSerializer):
         # Cliente é imutável na edição (ADMIN e SELLER)
         validated_data.pop("customer", None)
 
-        instance.seller = validated_data.get('seller', instance.seller)
+        with transaction.atomic():
+            # Serializa edições concorrentes na mesma venda
+            Sale.objects.select_for_update().get(pk=instance.pk)
 
-        instance.save()
+            instance.seller = validated_data.get('seller', instance.seller)
 
-        if items_data is not None:
-            instance.items.all().delete()
+            instance.save()
 
-            for item_data in items_data:
-                SaleItem.objects.create(
-                    sale=instance,
-                    product=item_data["product"],
-                    quantity=item_data["quantity"],
-                    unit_price=item_data["product"].unit_price,
-                )
+            if items_data is not None:
+                old_quantities = defaultdict(int)
 
-        after = self._snapshot(instance)
+                for item in before["items"]:
+                    old_quantities[item["product"]] += item["quantity"]
 
-        user = getattr(self.context.get("request"), "user", None)
+                new_quantities = self._stocks_consumption(items_data)
 
-        if user is None or not user.is_authenticated:
-            return instance
+                deltas = {
+                    product_id:
+                    new_quantities[product_id] - old_quantities[product_id]
+                    for product_id in set(old_quantities) | set(new_quantities)
+                    if new_quantities[product_id] != old_quantities[product_id]
+                }
 
-        SaleChangeLog.objects.create(
-            sale=instance,
-            user=user,
-            fields_changed=self._diff(before, after),
-        )
+                if deltas:
+                    lock_products(deltas.keys())
+
+                    try:
+                        apply_stock_deltas(deltas)
+                    except StockInsufficientError as exc:
+                        raise serializers.ValidationError(
+                            {"items": str(exc)}
+                        ) from exc
+
+                instance.items.all().delete()
+
+                for item_data in items_data:
+                    SaleItem.objects.create(
+                        sale=instance,
+                        product=item_data["product"],
+                        quantity=item_data["quantity"],
+                        unit_price=item_data["product"].unit_price,
+                    )
+
+            after = self._snapshot(instance)
+
+            user = getattr(self.context.get("request"), "user", None)
+
+            if user is None or not user.is_authenticated:
+                return instance
+
+            SaleChangeLog.objects.create(
+                sale=instance,
+                user=user,
+                fields_changed=self._diff(before, after),
+            )
 
         return instance
 

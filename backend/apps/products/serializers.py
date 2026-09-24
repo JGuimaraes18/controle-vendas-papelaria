@@ -12,5 +12,6 @@ class ProductSerializer(serializers.ModelSerializer):
             "description",
             "unit_price",
             "commission_percent",
+            "stock_quantity",
         ]
         read_only_fields = ["id", "code"]
