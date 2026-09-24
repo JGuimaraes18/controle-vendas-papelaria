@@ -28,6 +28,8 @@ export default function CancelSaleModal({
 
   if (!sale) return null;
 
+  const currentSale = sale;
+
   const stripped = reason.trim();
   const tooShort = stripped.length > 0 && stripped.length < MIN_REASON_LENGTH;
 
@@ -43,7 +45,7 @@ export default function CancelSaleModal({
     setSubmitting(true);
 
     try {
-      const updated = await cancelSale(sale.id, stripped);
+      const updated = await cancelSale(currentSale.id, stripped);
       onSuccess(updated);
     } catch (err) {
       const axiosError = err as AxiosError<{ detail?: string }>;
