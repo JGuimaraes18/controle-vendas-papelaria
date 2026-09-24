@@ -299,6 +299,18 @@ class SaleChangeLogTest(APITestCase):
             phone="11999999999",
         )
 
+        self.seller2_user = User.objects.create_user(
+            email="seller2@email.com",
+            password="123456",
+            first_name="Maria",
+            last_name="Souza",
+        )
+        self.seller2_user.groups.add(seller_group)
+        self.seller2_profile = Seller.objects.create(
+            user=self.seller2_user,
+            phone="11988887777",
+        )
+
         self.customer = Customer.objects.create(
             name="Cliente Teste",
             email="cliente@email.com",
@@ -329,10 +341,10 @@ class SaleChangeLogTest(APITestCase):
             HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}"
         )
 
-    def _sale_payload(self, customer=None, quantity=1):
+    def _sale_payload(self, customer=None, quantity=1, seller=None):
         return {
             "customer": (customer or self.customer).id,
-            "seller": self.seller_profile.id,
+            "seller": (seller or self.seller_profile).id,
             "items": [{"product": self.product.id, "quantity": quantity}],
         }
 
@@ -481,6 +493,107 @@ class SaleChangeLogTest(APITestCase):
         response = self.client.get(f"/api/sales/{other_sale.id}/history/")
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_seller_change_generates_history_with_names(self):
+        self._auth(self.admin)
+
+        response = self.client.put(
+            f"/api/sales/{self.sale.id}/",
+            self._sale_payload(seller=self.seller2_profile),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        log = SaleChangeLog.objects.filter(sale=self.sale).latest("changed_at")
+
+        self.assertIn("seller", log.fields_changed)
+
+        seller_diff = log.fields_changed["seller"]
+        self.assertEqual(seller_diff["before"], {
+            "id": self.seller_profile.id,
+            "name": "Seller Teste",
+        })
+        self.assertEqual(seller_diff["after"], {
+            "id": self.seller2_profile.id,
+            "name": "Maria Souza",
+        })
+
+    def test_seller_change_by_seller_forces_own_seller_and_logs_items(self):
+        self._auth(self.seller)
+
+        response = self.client.put(
+            f"/api/sales/{self.sale.id}/",
+            self._sale_payload(seller=self.seller2_profile, quantity=2),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.sale.refresh_from_db()
+        self.assertEqual(self.sale.seller, self.seller_profile)
+
+        log = SaleChangeLog.objects.filter(sale=self.sale).latest("changed_at")
+
+        self.assertNotIn("seller", log.fields_changed)
+        self.assertIn("items", log.fields_changed)
+
+    def test_history_displays_seller_names(self):
+        self._auth(self.admin)
+
+        self.client.put(
+            f"/api/sales/{self.sale.id}/",
+            self._sale_payload(seller=self.seller2_profile),
+            format="json",
+        )
+
+        response = self.client.get(f"/api/sales/{self.sale.id}/history/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        latest_log = response.data[-1]
+        seller_diff = latest_log["fields_changed"]["seller"]
+
+        self.assertEqual(seller_diff["before"], {
+            "id": self.seller_profile.id,
+            "name": "Seller Teste",
+        })
+        self.assertEqual(seller_diff["after"], {
+            "id": self.seller2_profile.id,
+            "name": "Maria Souza",
+        })
+
+    def test_legacy_log_with_plain_ids_still_returned(self):
+        SaleChangeLog.objects.create(
+            sale=self.sale,
+            user=self.admin,
+            fields_changed={
+                "seller": {"before": 4, "after": 3},
+                "status": {
+                    "before": "COMPLETED",
+                    "after": "CANCELLED",
+                },
+            },
+        )
+
+        response = self.client.get(
+            f"/api/sales/{self.sale.id}/history/",
+            HTTP_AUTHORIZATION=(
+                f"Bearer {RefreshToken.for_user(self.admin).access_token}"
+            ),
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        legacy_log = response.data[0]
+        self.assertEqual(
+            legacy_log["fields_changed"]["seller"],
+            {"before": 4, "after": 3},
+        )
+        self.assertEqual(
+            legacy_log["fields_changed"]["status"]["before"],
+            "COMPLETED",
+        )
 
 
 class SaleOrderingTest(APITestCase):

@@ -113,9 +113,22 @@ class SaleSerializer(serializers.ModelSerializer):
         return sale
 
     def _snapshot(self, sale):
+        seller = sale.seller
+        seller_user = seller.user
+        seller_name = (
+            f"{seller_user.first_name} {seller_user.last_name}".strip()
+            or seller_user.email
+        )
+
         return {
-            "customer": sale.customer_id,
-            "seller": sale.seller_id,
+            "customer": {
+                "id": sale.customer_id,
+                "name": sale.customer.name,
+            },
+            "seller": {
+                "id": sale.seller_id,
+                "name": seller_name,
+            },
             "items": [
                 {
                     "product": item.product_id,
@@ -180,7 +193,7 @@ class SaleSerializer(serializers.ModelSerializer):
         fields = {}
 
         for key in ("customer", "seller"):
-            if before[key] != after[key]:
+            if before[key]["id"] != after[key]["id"]:
                 fields[key] = {
                     "before": before[key],
                     "after": after[key],

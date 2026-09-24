@@ -35,6 +35,26 @@ const currencyFormatter = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
 });
 
+function formatReference(value: unknown): string {
+  if (value === null || value === undefined || value === "") {
+    return "—";
+  }
+
+  if (typeof value === "object") {
+    const ref = value as { id?: unknown; name?: unknown };
+
+    if (typeof ref.name === "string" && ref.name !== "") {
+      return ref.name;
+    }
+
+    if (typeof ref.id === "number") {
+      return String(ref.id);
+    }
+  }
+
+  return String(value);
+}
+
 function formatChangedField(key: string, value: unknown): string {
   if (key === "items" && Array.isArray(value)) {
     return String(value.length);
@@ -48,7 +68,7 @@ function formatChangedField(key: string, value: unknown): string {
     return "—";
   }
 
-  return String(value);
+  return formatReference(value);
 }
 
 function ItemLine({
