@@ -382,15 +382,54 @@ class SaleChangeLogTest(APITestCase):
 
         self.client.put(
             f"/api/sales/{self.sale.id}/",
-            self._sale_payload(customer=self.customer2),
+            self._sale_payload(customer=self.customer2, quantity=2),
             format="json",
         )
 
+        self.sale.refresh_from_db()
+        self.assertEqual(self.sale.customer, self.customer)
+
         log = SaleChangeLog.objects.filter(sale=self.sale).latest("changed_at")
 
-        self.assertIn("customer", log.fields_changed)
-        self.assertEqual(log.fields_changed["customer"]["before"], self.customer.id)
-        self.assertEqual(log.fields_changed["customer"]["after"], self.customer2.id)
+        self.assertNotIn("customer", log.fields_changed)
+        self.assertIn("items", log.fields_changed)
+
+    def test_admin_cannot_change_customer_on_update(self):
+        self._auth(self.admin)
+
+        response = self.client.put(
+            f"/api/sales/{self.sale.id}/",
+            self._sale_payload(customer=self.customer2, quantity=2),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["customer"], self.customer.id)
+
+        self.sale.refresh_from_db()
+        self.assertEqual(self.sale.customer, self.customer)
+
+        log = SaleChangeLog.objects.filter(sale=self.sale).latest("changed_at")
+        self.assertNotIn("customer", log.fields_changed)
+
+    def test_seller_cannot_change_customer_on_update(self):
+        self._auth(self.seller)
+
+        response = self.client.put(
+            f"/api/sales/{self.sale.id}/",
+            self._sale_payload(customer=self.customer2, quantity=2),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["customer"], self.customer.id)
+
+        self.sale.refresh_from_db()
+        self.assertEqual(self.sale.customer, self.customer)
+        self.assertEqual(self.sale.seller, self.seller_profile)
+
+        log = SaleChangeLog.objects.filter(sale=self.sale).latest("changed_at")
+        self.assertNotIn("customer", log.fields_changed)
 
     def test_seller_update_own_sale_creates_change_log(self):
         self._auth(self.seller)
@@ -486,3 +525,274 @@ class SaleOrderingTest(APITestCase):
         ids = [sale["id"] for sale in response.data]
         self.assertEqual(ids[0], newer.id)
         self.assertEqual(ids[1], older.id)
+
+
+class SaleCancellationTest(APITestCase):
+
+    def setUp(self):
+        admin_group, _ = Group.objects.get_or_create(name="ADMIN")
+        seller_group, _ = Group.objects.get_or_create(name="SELLER")
+
+        self.admin = User.objects.create_user(
+            email="admin@email.com",
+            password="123456",
+            first_name="Maria",
+            last_name="Silva",
+        )
+        self.admin.groups.add(admin_group)
+
+        self.seller_user = User.objects.create_user(
+            email="seller@email.com",
+            password="123456",
+        )
+        self.seller_user.groups.add(seller_group)
+        self.seller_profile = Seller.objects.create(
+            user=self.seller_user,
+            phone="11944444444",
+        )
+
+        self.other_seller_profile = Seller.objects.create(
+            user=User.objects.create_user(
+                email="outro_vendedor@email.com", password="123456"
+            ),
+            phone="11933333333",
+        )
+
+        self.customer = Customer.objects.create(
+            name="Cliente Teste",
+            email="cliente@email.com",
+            phone="11922222222",
+        )
+
+        self.product = Product.objects.create(
+            description="Produto Teste",
+            unit_price=Decimal("100.00"),
+            commission_percent=Decimal("5.00"),
+        )
+
+        self.sale = Sale.objects.create(
+            customer=self.customer,
+            seller=self.seller_profile,
+        )
+
+        self.other_sale = Sale.objects.create(
+            customer=self.customer,
+            seller=self.other_seller_profile,
+        )
+
+    def _auth(self, user):
+        refresh = RefreshToken.for_user(user)
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}"
+        )
+
+    def _cancel_url(self, sale=None):
+        return f"/api/sales/{(sale or self.sale).id}/cancel/"
+
+    def _update_payload(self, quantity=1):
+        return {
+            "customer": self.customer.id,
+            "seller": self.seller_profile.id,
+            "items": [{"product": self.product.id, "quantity": quantity}],
+        }
+
+    def test_admin_can_cancel_sale(self):
+        self._auth(self.admin)
+
+        response = self.client.post(
+            self._cancel_url(),
+            {"reason": "Cliente solicitou cancelamento do pedido."},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "CANCELLED")
+
+        self.sale.refresh_from_db()
+        self.assertEqual(self.sale.status, Sale.STATUS_CANCELLED)
+        self.assertEqual(self.sale.cancelled_by, self.admin)
+        self.assertIsNotNone(self.sale.cancelled_at)
+        self.assertEqual(
+            self.sale.cancellation_reason,
+            "Cliente solicitou cancelamento do pedido.",
+        )
+        self.assertTrue(Sale.objects.filter(id=self.sale.id).exists())
+
+    def test_seller_cannot_cancel_own_sale(self):
+        self._auth(self.seller_user)
+
+        response = self.client.post(
+            self._cancel_url(),
+            {"reason": "Cliente solicitou cancelamento do pedido."},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.sale.refresh_from_db()
+        self.assertEqual(self.sale.status, Sale.STATUS_COMPLETED)
+        self.assertEqual(SaleChangeLog.objects.count(), 0)
+
+    def test_seller_cannot_cancel_other_seller_sale(self):
+        self._auth(self.seller_user)
+
+        response = self.client.post(
+            self._cancel_url(self.other_sale),
+            {"reason": "Cliente solicitou cancelamento do pedido."},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_cancel_requires_reason(self):
+        self._auth(self.admin)
+
+        response = self.client.post(self._cancel_url(), {}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.sale.refresh_from_db()
+        self.assertEqual(self.sale.status, Sale.STATUS_COMPLETED)
+
+    def test_cancel_rejects_whitespace_reason(self):
+        self._auth(self.admin)
+
+        response = self.client.post(
+            self._cancel_url(), {"reason": "      "}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.sale.refresh_from_db()
+        self.assertEqual(self.sale.status, Sale.STATUS_COMPLETED)
+
+    def test_cancel_rejects_short_reason(self):
+        self._auth(self.admin)
+
+        response = self.client.post(
+            self._cancel_url(), {"reason": "curto"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.sale.refresh_from_db()
+        self.assertEqual(self.sale.status, Sale.STATUS_COMPLETED)
+
+    def test_cancelled_sale_cannot_be_edited_by_admin(self):
+        self._auth(self.admin)
+        self.client.post(
+            self._cancel_url(),
+            {"reason": "Cliente solicitou cancelamento do pedido."},
+            format="json",
+        )
+
+        response = self.client.put(
+            f"/api/sales/{self.sale.id}/",
+            self._update_payload(quantity=2),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(SaleChangeLog.objects.count(), 1)
+
+    def test_cancelled_sale_cannot_be_edited_by_seller(self):
+        self._auth(self.admin)
+        self.client.post(
+            self._cancel_url(),
+            {"reason": "Cliente solicitou cancelamento do pedido."},
+            format="json",
+        )
+
+        self._auth(self.seller_user)
+        response = self.client.put(
+            f"/api/sales/{self.sale.id}/",
+            self._update_payload(quantity=2),
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(SaleChangeLog.objects.count(), 1)
+
+    def test_cancelled_sale_cannot_be_cancelled_again(self):
+        self._auth(self.admin)
+        self.client.post(
+            self._cancel_url(),
+            {"reason": "Cliente solicitou cancelamento do pedido."},
+            format="json",
+        )
+
+        response = self.client.post(
+            self._cancel_url(),
+            {"reason": "Tentar cancelar novamente."},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(SaleChangeLog.objects.count(), 1)
+
+    def test_cancelled_sale_can_still_be_retrieved(self):
+        self._auth(self.admin)
+        self.client.post(
+            self._cancel_url(),
+            {"reason": "Cliente solicitou cancelamento do pedido."},
+            format="json",
+        )
+
+        response = self.client.get(f"/api/sales/{self.sale.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "CANCELLED")
+        self.assertEqual(response.data["cancelled_by_name"], "Maria Silva")
+        self.assertTrue(response.data["cancelled_at"])
+        self.assertEqual(
+            response.data["cancellation_reason"],
+            "Cliente solicitou cancelamento do pedido.",
+        )
+
+    def test_cancelled_sale_cannot_be_deleted(self):
+        self._auth(self.admin)
+        self.client.post(
+            self._cancel_url(),
+            {"reason": "Cliente solicitou cancelamento do pedido."},
+            format="json",
+        )
+
+        response = self.client.delete(f"/api/sales/{self.sale.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+        self.assertTrue(Sale.objects.filter(id=self.sale.id).exists())
+
+    def test_cancel_creates_change_log(self):
+        self._auth(self.admin)
+
+        self.client.post(
+            self._cancel_url(),
+            {"reason": "Cliente solicitou cancelamento do pedido."},
+            format="json",
+        )
+
+        log = SaleChangeLog.objects.get(sale=self.sale)
+
+        self.assertEqual(log.user, self.admin)
+        self.assertIsNotNone(log.changed_at)
+        self.assertEqual(
+            log.fields_changed["status"],
+            {
+                "before": Sale.STATUS_COMPLETED,
+                "after": Sale.STATUS_CANCELLED,
+            },
+        )
+
+    def test_history_endpoint_includes_cancellation_change(self):
+        self._auth(self.admin)
+
+        self.client.post(
+            self._cancel_url(),
+            {"reason": "Cliente solicitou cancelamento do pedido."},
+            format="json",
+        )
+
+        response = self.client.get(f"/api/sales/{self.sale.id}/history/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["user_name"], "Maria Silva")
+        self.assertEqual(
+            response.data[0]["fields_changed"]["status"]["after"], "CANCELLED"
+        )

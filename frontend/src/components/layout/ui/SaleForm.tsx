@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Pencil, Trash2, Search, Plus, Calendar, User, ShoppingBag } from "lucide-react";
+import { Pencil, Trash2, Search, Plus, Calendar, User, ShoppingBag, Ban } from "lucide-react";
 import { getCustomers } from "../../../services/customerService";
 import { getSellers } from "../../../services/sellerService";
 import { getProducts } from "../../../services/productService";
@@ -172,6 +172,8 @@ export default function SaleForm({ initialData, onSave, title }: SaleFormProps) 
   };
 
   const handleSubmit = async () => {
+    if (initialData?.status === "CANCELLED") return;
+
     const hasError = !selectedSeller || !selectedCustomer || items.length === 0;
     if (hasError) {
       setFormError(true);
@@ -200,6 +202,13 @@ export default function SaleForm({ initialData, onSave, title }: SaleFormProps) 
           {initialData ? new Date(initialData.date).toLocaleDateString('pt-BR') : new Date().toLocaleDateString('pt-BR')}
         </div>
       </div>
+
+      {initialData?.status === "CANCELLED" && (
+        <div className="flex items-center gap-2 bg-rose-50 border border-rose-100 text-rose-600 text-xs font-medium px-3 py-2 rounded-lg">
+          <Ban size={14} className="shrink-0" />
+          Venda cancelada — não é possível editar.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-4">
@@ -344,9 +353,10 @@ export default function SaleForm({ initialData, onSave, title }: SaleFormProps) 
             <div>
               <label className="block text-[11px] font-semibold text-slate-500 mb-1">Cliente</label>
               <select 
-                className={`w-full text-xs bg-slate-50/50 border rounded-lg p-2 outline-none focus:border-teal-600 transition-all cursor-pointer ${
-                  formError && !selectedCustomer ? "border-rose-400 bg-rose-50/50" : "border-slate-200"
-                }`} 
+                disabled={!!initialData}
+                className={`w-full text-xs bg-slate-50/50 border rounded-lg p-2 outline-none transition-all ${
+                  initialData ? "text-slate-500 bg-slate-100 cursor-not-allowed" : "focus:border-teal-600 cursor-pointer"
+                } ${formError && !selectedCustomer ? "border-rose-400 bg-rose-50/50" : "border-slate-200"}`} 
                 value={selectedCustomer} 
                 onChange={(e) => setSelectedCustomer(Number(e.target.value))}
               >
@@ -373,7 +383,8 @@ export default function SaleForm({ initialData, onSave, title }: SaleFormProps) 
 
                 <button
                   onClick={handleSubmit}
-                  className="flex-1 bg-teal-600 text-white py-1.5 rounded-lg font-bold shadow-sm hover:bg-teal-700 active:scale-[0.98] transition-all"
+                  disabled={initialData?.status === "CANCELLED"}
+                  className="flex-1 bg-teal-600 text-white py-1.5 rounded-lg font-bold shadow-sm hover:bg-teal-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
                 >
                   Gravar Venda
                 </button>

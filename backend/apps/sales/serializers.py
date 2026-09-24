@@ -32,6 +32,7 @@ class SaleItemSerializer(serializers.ModelSerializer):
 class SaleSerializer(serializers.ModelSerializer):
     items = SaleItemSerializer(many=True)
     total_value = serializers.SerializerMethodField()
+    cancelled_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Sale
@@ -39,16 +40,39 @@ class SaleSerializer(serializers.ModelSerializer):
             "id",
             "invoice_number",
             "date",
+            "status",
             "customer",
             "seller",
             "items",
             "total_value",
+            "cancelled_by",
+            "cancelled_by_name",
+            "cancelled_at",
+            "cancellation_reason",
         ]
-        read_only_fields = ["invoice_number", "date"]
+        read_only_fields = [
+            "invoice_number",
+            "date",
+            "status",
+            "cancelled_by",
+            "cancelled_by_name",
+            "cancelled_at",
+            "cancellation_reason",
+        ]
 
     @extend_schema_field(serializers.DecimalField(max_digits=12, decimal_places=2))
     def get_total_value(self, obj):
         return sum(item.quantity * item.unit_price for item in obj.items.all())
+
+    @extend_schema_field(serializers.CharField())
+    def get_cancelled_by_name(self, obj):
+        if obj.cancelled_by is None:
+            return None
+
+        return (
+            f"{obj.cancelled_by.first_name} "
+            f"{obj.cancelled_by.last_name}"
+        ).strip() or obj.cancelled_by.email
 
     def create(self, validated_data):
         items_data = validated_data.pop("items")
@@ -98,7 +122,9 @@ class SaleSerializer(serializers.ModelSerializer):
 
         items_data = validated_data.pop("items", None)
 
-        instance.customer = validated_data.get('customer', instance.customer)
+        # Cliente é imutável na edição (ADMIN e SELLER)
+        validated_data.pop("customer", None)
+
         instance.seller = validated_data.get('seller', instance.seller)
 
         instance.save()
@@ -138,6 +164,57 @@ class SaleSerializer(serializers.ModelSerializer):
             )
 
         return attrs
+
+
+class CustomerPurchaseHistorySerializer(serializers.ModelSerializer):
+    items = SaleItemSerializer(many=True, read_only=True)
+    total_value = serializers.SerializerMethodField()
+    seller_name = serializers.SerializerMethodField()
+    cancelled_by_name = serializers.SerializerMethodField()
+    item_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Sale
+        fields = [
+            "id",
+            "invoice_number",
+            "date",
+            "status",
+            "seller",
+            "seller_name",
+            "item_count",
+            "total_value",
+            "items",
+            "cancelled_at",
+            "cancelled_by_name",
+            "cancellation_reason",
+        ]
+        read_only_fields = fields
+
+    @extend_schema_field(serializers.DecimalField(max_digits=12, decimal_places=2))
+    def get_total_value(self, obj):
+        return sum(item.quantity * item.unit_price for item in obj.items.all())
+
+    @extend_schema_field(serializers.CharField())
+    def get_seller_name(self, obj):
+        return (
+            f"{obj.seller.user.first_name} "
+            f"{obj.seller.user.last_name}"
+        ).strip() or obj.seller.user.email
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_item_count(self, obj):
+        return len(obj.items.all())
+
+    @extend_schema_field(serializers.CharField())
+    def get_cancelled_by_name(self, obj):
+        if obj.cancelled_by is None:
+            return None
+
+        return (
+            f"{obj.cancelled_by.first_name} "
+            f"{obj.cancelled_by.last_name}"
+        ).strip() or obj.cancelled_by.email
 
 
 class SaleChangeLogSerializer(serializers.ModelSerializer):

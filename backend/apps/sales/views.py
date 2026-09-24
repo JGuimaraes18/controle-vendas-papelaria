@@ -1,8 +1,10 @@
+from django.utils import timezone
 from django.utils.dateparse import parse_date
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -11,7 +13,7 @@ from rest_framework.viewsets import ModelViewSet
 from apps.sales.services.commission_service import calculate_commissions
 from core.permissions import IsAdminUserRole, IsOwnerSale
 
-from .models import CommissionRule, Sale
+from .models import CommissionRule, Sale, SaleChangeLog
 from .serializers import (CommissionReportSerializer, CommissionRuleSerializer,
                           SaleChangeLogSerializer, SaleSerializer)
 
@@ -49,11 +51,89 @@ class SaleViewSet(ModelViewSet):
         else:
             serializer.save(seller=user.seller_profile)
 
+    def _check_not_cancelled(self, sale):
+        if sale.status == Sale.STATUS_CANCELLED:
+            return Response(
+                {"detail": "Vendas canceladas não podem ser editadas."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return None
+
+    def update(self, request, *args, **kwargs):
+        sale = self.get_object()
+
+        blocked = self._check_not_cancelled(sale)
+        if blocked is not None:
+            return blocked
+
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        sale = self.get_object()
+
+        blocked = self._check_not_cancelled(sale)
+        if blocked is not None:
+            return blocked
+
+        return super().partial_update(request, *args, **kwargs)
+
     def destroy(self, request, *args, **kwargs):
         return Response(
             {"detail": "A exclusão de vendas não é permitida."},
             status=status.HTTP_405_METHOD_NOT_ALLOWED,
         )
+
+    @action(detail=True, methods=["post"], url_path="cancel")
+    def cancel(self, request, pk=None):
+        sale = self.get_object()
+
+        if not self._is_admin(request.user):
+            raise PermissionDenied(
+                {"detail": "Somente administradores podem cancelar vendas."}
+            )
+
+        if sale.status == Sale.STATUS_CANCELLED:
+            return Response(
+                {"detail": "A venda já está cancelada."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        raw_reason = request.data.get("reason")
+        reason = raw_reason.strip() if isinstance(raw_reason, str) else ""
+
+        if len(reason) < 10:
+            return Response(
+                {"detail": "A justificativa é obrigatória e deve ter no mínimo 10 caracteres."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        sale.status = Sale.STATUS_CANCELLED
+        sale.cancelled_by = request.user
+        sale.cancelled_at = timezone.now()
+        sale.cancellation_reason = reason
+        sale.save(
+            update_fields=[
+                "status",
+                "cancelled_by",
+                "cancelled_at",
+                "cancellation_reason",
+            ]
+        )
+
+        SaleChangeLog.objects.create(
+            sale=sale,
+            user=request.user,
+            fields_changed={
+                "status": {
+                    "before": Sale.STATUS_COMPLETED,
+                    "after": Sale.STATUS_CANCELLED,
+                }
+            },
+        )
+
+        serializer = self.get_serializer(sale)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["get"], url_path="history")
     def history(self, request, pk=None):

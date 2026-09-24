@@ -26,6 +26,16 @@ export async function updateSale(
   return response.data;
 }
 
+export async function cancelSale(
+  id: number,
+  reason: string
+): Promise<Sale> {
+  const response = await api.post<Sale>(`/api/sales/${id}/cancel/`, {
+    reason,
+  });
+  return response.data;
+}
+
 export async function deleteSale(id: number): Promise<void> {
   await api.delete(`/api/sales/${id}/`);
 }

@@ -37,6 +37,7 @@ def calculate_sale_commission(sale):
 def calculate_commissions(start_date, end_date):
     sales = (
         Sale.objects.filter(date__date__range=[start_date, end_date])
+        .exclude(status=Sale.STATUS_CANCELLED)
         .select_related("seller")
         .prefetch_related("items__product")
     )

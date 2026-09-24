@@ -3,6 +3,7 @@ import { X, History, User as UserIcon, CalendarClock } from "lucide-react";
 
 import { getSaleHistory } from "../../../services/salesService";
 import type { Sale, SaleChangeLog } from "../../../types/Sale";
+import { saleStatusLabel } from "../../../utils/format";
 
 interface SaleHistoryModalProps {
   sale: Sale | null;
@@ -13,11 +14,16 @@ const FIELD_LABELS: Record<string, string> = {
   customer: "Cliente",
   seller: "Vendedor",
   items: "Itens",
+  status: "Status",
 };
 
 function formatChangedField(key: string, value: unknown): string {
   if (key === "items" && Array.isArray(value)) {
     return String(value.length);
+  }
+
+  if (key === "status") {
+    return saleStatusLabel(String(value));
   }
 
   if (value === null || value === undefined || value === "") {

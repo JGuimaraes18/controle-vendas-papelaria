@@ -8,7 +8,8 @@ from django.utils import timezone
 from apps.customers.models import Customer
 from apps.products.models import Product
 from apps.sales.models import CommissionRule, Sale, SaleItem
-from apps.sales.services.commission_service import calculate_item_commission
+from apps.sales.services.commission_service import (calculate_commissions,
+                                                    calculate_item_commission)
 from apps.sellers.models import Seller
 
 User = get_user_model()
@@ -128,3 +129,38 @@ class TestCommissionRule(TestCase):
         total_commission = calculate_sale_commission(sale)
 
         self.assertEqual(total_commission, Decimal("5.00"))
+
+    def test_cancelled_sale_excluded_from_commission_report(self):
+        completed = Sale.objects.create(
+            seller=self.seller,
+            customer=self.customer,
+        )
+        SaleItem.objects.create(
+            sale=completed,
+            product=self.product,
+            quantity=2,
+        )
+
+        cancelled = Sale.objects.create(
+            seller=self.seller,
+            customer=self.customer,
+            status=Sale.STATUS_CANCELLED,
+        )
+        SaleItem.objects.create(
+            sale=cancelled,
+            product=self.product,
+            quantity=3,
+        )
+
+        today = timezone.localdate()
+
+        report = list(calculate_commissions(today, today))
+
+        self.assertEqual(len(report), 1)
+
+        entry = report[0]
+
+        # Concluída continua participando (2 x 100 = 200; 10% = 20)
+        self.assertEqual(entry["sale_count"], 1)
+        self.assertEqual(entry["total_sales"], Decimal("200.00"))
+        self.assertEqual(entry["total_commission"], Decimal("20.00"))

@@ -8,12 +8,26 @@ from django.db.models.functions import Coalesce
 
 
 class Sale(models.Model):
+    STATUS_COMPLETED = "COMPLETED"
+    STATUS_CANCELLED = "CANCELLED"
+
+    STATUS_CHOICES = [
+        (STATUS_COMPLETED, "Concluída"),
+        (STATUS_CANCELLED, "Cancelada"),
+    ]
+
     invoice_number = models.CharField(
         max_length=50,
         unique=True,
         editable=False,
     )
     date = models.DateTimeField(auto_now_add=True)
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_COMPLETED,
+    )
 
     customer = models.ForeignKey(
         "customers.Customer",
@@ -26,6 +40,18 @@ class Sale(models.Model):
         on_delete=models.PROTECT,
         related_name="sales",
     )
+
+    cancelled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="cancelled_sales",
+        null=True,
+        blank=True,
+    )
+
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+
+    cancellation_reason = models.TextField(blank=True, default="")
 
     class Meta:
         ordering = ["-date"]

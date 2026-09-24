@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, Trash2, User, Mail, Phone } from "lucide-react";
+import { Pencil, Trash2, User, Mail, Phone, ShoppingCart } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -9,6 +9,7 @@ import {
 
 import type { Customer } from "../../types/Customer";
 import { ConfirmModal } from "../../components/layout/ui/ConfirmModal";
+import PurchaseHistoryModal from "../../components/layout/ui/PurchaseHistoryModal";
 import SortableTh from "../../components/layout/ui/SortableTh";
 import type { SortDirection } from "../../components/layout/ui/SortableTh";
 import { isAdmin } from "../../services/authService";
@@ -34,6 +35,9 @@ export default function CustomerList({
   const [sortDir, setSortDir] = useState<SortDirection>("asc");
 
   const [customerToDelete, setCustomerToDelete] =
+    useState<Customer | null>(null);
+
+  const [historyCustomer, setHistoryCustomer] =
     useState<Customer | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -250,6 +254,14 @@ export default function CustomerList({
                     <td className="p-2.5">
                       <div className="flex items-center justify-center gap-1">
                         <button
+                          onClick={() => setHistoryCustomer(customer)}
+                          className="p-1.5 text-slate-400 hover:text-teal-600 rounded hover:bg-slate-100 transition-colors"
+                          title="Histórico de compras"
+                        >
+                          <ShoppingCart size={13} />
+                        </button>
+
+                        <button
                           onClick={() =>
                             navigate(`/clientes/editar/${customer.id}`)
                           }
@@ -290,6 +302,12 @@ export default function CustomerList({
           message={`Deseja realmente excluir o cliente "${customerToDelete.name}"?`}
         />
       )}
+
+      <PurchaseHistoryModal
+        key={historyCustomer?.id ?? "none"}
+        customer={historyCustomer}
+        onClose={() => setHistoryCustomer(null)}
+      />
     </>
   );
 }

@@ -11,12 +11,15 @@ import {
   Pencil,
   History,
   FileText,
+  Ban,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import SaleHistoryModal from "../../components/layout/ui/SaleHistoryModal";
+import CancelSaleModal from "../../components/layout/ui/CancelSaleModal";
 import SortableTh from "../../components/layout/ui/SortableTh";
 import type { SortDirection } from "../../components/layout/ui/SortableTh";
-import { getUser, isSeller as isSellerRole } from "../../services/authService";
+import { getUser, isSeller as isSellerRole, isAdmin } from "../../services/authService";
+import { saleStatusLabel } from "../../utils/format";
 
 interface SalesListProps {
   searchTerm: string;
@@ -27,7 +30,8 @@ type SaleSortKey =
   | "customer"
   | "seller"
   | "date"
-  | "total_value";
+  | "total_value"
+  | "status";
 
 export default function SalesList({ searchTerm }: SalesListProps) {
   const [sales, setSales] = useState<Sale[]>([]);
@@ -35,12 +39,15 @@ export default function SalesList({ searchTerm }: SalesListProps) {
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [expandedSaleId, setExpandedSaleId] = useState<number | null>(null);
   const [historySale, setHistorySale] = useState<Sale | null>(null);
+  const [saleToCancel, setSaleToCancel] = useState<Sale | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SaleSortKey>("date");
   const [sortDir, setSortDir] = useState<SortDirection>("desc");
 
   const navigate = useNavigate();
+
+  const admin = isAdmin();
 
   const currencyFormatter = new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -158,11 +165,23 @@ export default function SalesList({ searchTerm }: SalesListProps) {
         case "total_value":
           cmp = a.total_value - b.total_value;
           break;
+        case "status":
+          cmp = String(a.status).localeCompare(String(b.status));
+          break;
       }
 
       return sortDir === "asc" ? cmp : -cmp;
     });
   }, [sales, searchTerm, customerMap, sellerMap, sortKey, sortDir]);
+
+  const handleCancelSuccess = (updated: Sale) => {
+    setSales((current) =>
+      current.map((sale) =>
+        sale.id === updated.id ? { ...sale, ...updated } : sale
+      )
+    );
+    setSaleToCancel(null);
+  };
 
   if (loading) return <p className="p-4 text-xs font-medium text-slate-500">Carregando vendas...</p>;
   if (error) return <p className="p-4 text-xs font-medium text-rose-500">{error}</p>;
@@ -186,28 +205,35 @@ export default function SalesList({ searchTerm }: SalesListProps) {
                   active={sortKey === "customer"}
                   direction={sortDir}
                   onSort={() => toggleSort("customer")}
-                  className="p-3 w-[25%]"
+                  className="p-3 w-[21%]"
                 />
                 <SortableTh
                   label="Vendedor"
                   active={sortKey === "seller"}
                   direction={sortDir}
                   onSort={() => toggleSort("seller")}
-                  className="p-3 w-[25%]"
+                  className="p-3 w-[21%]"
                 />
                 <SortableTh
                   label="Data"
                   active={sortKey === "date"}
                   direction={sortDir}
                   onSort={() => toggleSort("date")}
-                  className="p-3 text-center w-[15%]"
+                  className="p-3 text-center w-[13%]"
                 />
                 <SortableTh
                   label="Valor Total"
                   active={sortKey === "total_value"}
                   direction={sortDir}
                   onSort={() => toggleSort("total_value")}
-                  className="p-3 text-center w-[15%]"
+                  className="p-3 text-center w-[12%]"
+                />
+                <SortableTh
+                  label="Status"
+                  active={sortKey === "status"}
+                  direction={sortDir}
+                  onSort={() => toggleSort("status")}
+                  className="p-3 text-center w-[13%]"
                 />
                 <th className="p-3 text-center w-[10%]">Ações</th>
               </tr>
@@ -216,7 +242,7 @@ export default function SalesList({ searchTerm }: SalesListProps) {
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {sortedSales.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-slate-400 italic text-[11px]">
+                  <td colSpan={7} className="p-8 text-center text-slate-400 italic text-[11px]">
                     Nenhuma venda encontrada para o termo pesquisado.
                   </td>
                 </tr>
@@ -247,6 +273,19 @@ export default function SalesList({ searchTerm }: SalesListProps) {
                         {currencyFormatter.format(sale.total_value)}
                       </td>
 
+                      <td className="p-2.5 text-center">
+                        {sale.status === "CANCELLED" ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-rose-50 text-rose-600 border border-rose-100">
+                            <Ban size={10} />
+                            {saleStatusLabel(sale.status)}
+                          </span>
+                        ) : (
+                          <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-emerald-50 text-emerald-600 border border-emerald-100">
+                            {saleStatusLabel(sale.status)}
+                          </span>
+                        )}
+                      </td>
+
                       <td className="p-2.5">
                         <div className="flex justify-center items-center gap-1.5">
                           <button
@@ -261,13 +300,15 @@ export default function SalesList({ searchTerm }: SalesListProps) {
                             {expandedSaleId === sale.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                           </button>
 
-                          <button
-                            onClick={() => navigate(`/vendas/editar/${sale.id}`)}
-                            className="p-1 rounded transition-colors text-slate-400 hover:text-blue-600 hover:bg-slate-100"
-                            title="Editar venda"
-                          >
-                            <Pencil size={14} />
-                          </button>
+                          {sale.status !== "CANCELLED" && (
+                            <button
+                              onClick={() => navigate(`/vendas/editar/${sale.id}`)}
+                              className="p-1 rounded transition-colors text-slate-400 hover:text-blue-600 hover:bg-slate-100"
+                              title="Editar venda"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                          )}
 
                           <button
                             onClick={() => setHistorySale(sale)}
@@ -276,13 +317,23 @@ export default function SalesList({ searchTerm }: SalesListProps) {
                           >
                             <History size={14} />
                           </button>
+
+                          {admin && sale.status !== "CANCELLED" && (
+                            <button
+                              onClick={() => setSaleToCancel(sale)}
+                              className="p-1 rounded transition-colors text-slate-400 hover:text-rose-600 hover:bg-slate-100"
+                              title="Cancelar venda"
+                            >
+                              <Ban size={14} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
 
                     {expandedSaleId === sale.id && (
                       <tr className="bg-slate-50/50">
-                        <td colSpan={6} className="p-3 border-t border-b border-slate-100">
+                        <td colSpan={7} className="p-3 border-t border-b border-slate-100">
                           <div className="bg-white rounded-lg border border-slate-100 p-2.5 shadow-inner">
                             <table className="w-full text-[11px] text-slate-600 table-fixed border-collapse">
                               <thead>
@@ -338,6 +389,13 @@ export default function SalesList({ searchTerm }: SalesListProps) {
         key={historySale?.id ?? "none"}
         sale={historySale}
         onClose={() => setHistorySale(null)}
+      />
+
+      <CancelSaleModal
+        key={saleToCancel?.id ?? "none"}
+        sale={saleToCancel}
+        onClose={() => setSaleToCancel(null)}
+        onSuccess={handleCancelSuccess}
       />
     </>
   );
