@@ -5,3 +5,4 @@ env/
 __pycache__/
 postgres_data/
 *.pyc
+loadtest/results/*.json

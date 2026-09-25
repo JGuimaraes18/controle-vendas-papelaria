@@ -1,6 +1,7 @@
 from collections import defaultdict
 
 from django.db import transaction
+from django.db.models import Prefetch
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from drf_spectacular.utils import extend_schema, OpenApiParameter
@@ -17,7 +18,7 @@ from apps.sales.services.commission_service import calculate_commissions
 from apps.sales.services.stock_service import apply_stock_deltas, lock_products
 from core.permissions import IsAdminUserRole, IsOwnerSale
 
-from .models import CommissionRule, Sale, SaleChangeLog
+from .models import CommissionRule, Sale, SaleChangeLog, SaleItem
 from .serializers import (CommissionReportSerializer, CommissionRuleSerializer,
                           SaleChangeLogSerializer, SaleSerializer)
 
@@ -34,9 +35,13 @@ class SaleViewSet(ModelViewSet):
         user = self.request.user
 
         if self._is_admin(user):
-            return Sale.objects.all()
+            queryset = Sale.objects.all()
+        else:
+            queryset = Sale.objects.filter(seller__user=user)
 
-        return Sale.objects.filter(seller__user=user)
+        return queryset.select_related("cancelled_by").prefetch_related(
+            Prefetch("items", SaleItem.objects.select_related("product"))
+        )
 
     def perform_create(self, serializer):
         user = self.request.user

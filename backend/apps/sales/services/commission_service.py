@@ -1,9 +1,21 @@
 from decimal import Decimal
 
-from apps.sales.models import CommissionRule, Sale
+from django.db.models import Prefetch
+
+from apps.sales.models import CommissionRule, Sale, SaleItem
 
 
-def get_commission_rule(weekday: int):
+def _sale_items_with_product(sale):
+    if "items" in getattr(sale, "_prefetched_objects_cache", {}):
+        return sale.items.all()
+
+    return sale.items.select_related("product")
+
+
+def get_commission_rule(weekday: int, rules=None):
+    if rules is not None:
+        return rules.get(weekday)
+
     return CommissionRule.objects.filter(weekday=weekday).order_by("id").first()
 
 
@@ -21,12 +33,14 @@ def calculate_item_commission(sale_item, rule=None):
     return total_value * (product_percentage / Decimal("100"))
 
 
-def calculate_sale_commission(sale):
-    rule = get_commission_rule(sale.date.weekday())
+def calculate_sale_commission(sale, rule=None, rules=None, items=None):
+    if rule is None:
+        rule = get_commission_rule(sale.date.weekday(), rules)
+
+    if items is None:
+        items = _sale_items_with_product(sale)
 
     total = Decimal("0.00")
-
-    items = sale.items.select_related("product")
 
     for item in items:
         total += calculate_item_commission(item, rule)
@@ -38,8 +52,10 @@ def calculate_commissions(start_date, end_date):
     sales = (
         Sale.objects.filter(date__date__range=[start_date, end_date])
         .exclude(status=Sale.STATUS_CANCELLED)
-        .select_related("seller")
-        .prefetch_related("items__product")
+        .select_related("seller__user")
+        .prefetch_related(
+            Prefetch("items", SaleItem.objects.select_related("product"))
+        )
     )
 
     commission_rules = {rule.weekday: rule for rule in CommissionRule.objects.all()}

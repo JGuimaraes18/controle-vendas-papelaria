@@ -6,9 +6,9 @@ services:
     restart: always
     env_file:
       - .env_prod
-    command: sh -c "gunicorn core.wsgi:application --bind 0.0.0.0:8000"      
+    command: sh -c "gunicorn core.wsgi:application --bind 0.0.0.0:8000 --workers 4 --threads 2"
     volumes:
-      - static_volume:/staticfiles
+      - static_volume:/app/staticfiles
     networks:
       - net_sales
 
@@ -17,7 +17,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.prod
       args:
-        VITE_API_URL: ${VITE_API_URL}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost}
     restart: always
     ports:
       - "80:80"
