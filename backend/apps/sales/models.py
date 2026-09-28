@@ -16,12 +16,9 @@ class Sale(models.Model):
         (STATUS_CANCELLED, "Cancelada"),
     ]
 
-    invoice_number = models.CharField(
-        max_length=50,
-        unique=True,
-        editable=False,
-    )
-    date = models.DateTimeField(auto_now_add=True)
+    # indexado para o relatório de comissões, que filtra por intervalo de
+    # data e ordena por -date
+    date = models.DateTimeField(auto_now_add=True, db_index=True)
 
     status = models.CharField(
         max_length=20,
@@ -56,13 +53,19 @@ class Sale(models.Model):
     class Meta:
         ordering = ["-date"]
 
-    def save(self, *args, **kwargs):
-        is_new = self.pk is None
-        super().save(*args, **kwargs)
+    @property
+    def invoice_number(self):
+        """Número da venda: o id com 6 dígitos.
 
-        if is_new and not self.invoice_number:
-            self.invoice_number = f"{self.pk:06d}"
-            super().save(update_fields=["invoice_number"])
+        A coluna foi removida em 0004. O INSERT passa a ser um statement só,
+        sem o UPDATE que o save() fazia logo depois para preencher o campo, e o
+        valor devolvido é idêntico ao que estava gravado (o 0004 só pode ser
+        aplicado depois de conferir que nenhuma venda divergente existe).
+        """
+        if self.pk is None:
+            return ""
+
+        return f"{self.pk:06d}"
 
     @property
     def total_amount(self):

@@ -1,3 +1,4 @@
+from django.db.models import Prefetch
 from django.db.models.deletion import ProtectedError
 from rest_framework import status
 from rest_framework.decorators import action
@@ -6,6 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from apps.sales.models import SaleItem
 from apps.sales.serializers import CustomerPurchaseHistorySerializer
 
 from core.permissions import CustomerPermission
@@ -26,7 +28,14 @@ class CustomerViewSet(ModelViewSet):
         sales = (
             customer.sales
             .select_related("seller__user", "cancelled_by")
-            .prefetch_related("items__product")
+            # um JOIN só para itens+produto: prefetch_related("items__product")
+            # emitia duas queries e a diferença não muda o resultado.
+            .prefetch_related(
+                Prefetch(
+                    "items",
+                    queryset=SaleItem.objects.select_related("product"),
+                )
+            )
             .order_by("-date")
         )
 

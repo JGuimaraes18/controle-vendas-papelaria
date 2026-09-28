@@ -29,6 +29,45 @@ SALES_REQUEST_QUERIES = 4
 COMMISSION_SERVICE_QUERIES = 3
 COMMISSION_REQUEST_QUERIES = 5
 
+# Escritas e endpoints que serializam coleções ou gravam várias linhas.
+# Os valores são fixos: nenhum deles cresce com o volume de vendas.
+#
+# POST /api/sales/ segue 10 + P + 3I statements, onde P é o número de produtos
+# distintos e I o número de itens. O 3I vem de: validação do product (o
+# PrimaryKeyRelatedField consulta uma vez POR ITEM, sem lote), INSERT dos itens
+# e o N+1 de product_description na resposta.
+#
+# Contagem medida com a convenção de teste (SAVEPOINT/RELEASE SAVEPOINT do
+# atomic do serializer entram na conta); em produção são 2 a menos.
+# Passo A (cache de prefetch na resposta) aplicado. O POST saiu de 10 + P + 3I
+# para 8 + P + 2I: a resposta deixa de reler items, de fazer o N+1 de
+# product_description e de reler items para o get_total_value (2 + I
+# statements). 16 -> 13 com 1 item, 23 -> 18 com 3 itens em 2 produtos.
+# Passo C (UPDATE ... FROM (VALUES ...) no lugar do laço de UPDATEs) aplicado.
+# Com 1 produto o laço já emitia 1 statement, então o POST de 1 item segue em 13;
+# o ganho aparece a partir do 2º produto distinto: 3 itens em 2 produtos vão de
+# 16 para 15, e o PUT (que repõe e consome) cai um statement.
+# Passo F1 (invoice_number virou property do id) aplicado: o INSERT da venda
+# não precisa mais ser seguido do UPDATE que preenchia a coluna. Com 1 produto
+# o total do POST fica em 12 statements (+2 de savepoint no teste) contra 16 do
+# baseline. Com 3 itens em 2 produtos, 14.
+#
+# O caminho de estoque insuficiente e o PUT não mudam: no primeiro o INSERT nem
+# chega a acontecer, e no segundo o save() gravava data/status/customer/seller
+# num UPDATE só, que apenas perdeu uma coluna.
+SALE_CREATE_QUERIES = 12
+SALE_CREATE_MULTI_ITEM_QUERIES = 14
+SALE_CREATE_INSUFFICIENT_STOCK_QUERIES = 12
+SALE_UPDATE_QUERIES = 33
+SALE_CANCEL_QUERIES = 14
+# Listagens corrigidas: o N+1 de group em /sellers/ e a query extra de produto
+# em purchase-history. /sellers/ era 3 + N (5 com 2 vendedores, 15 com 12) e
+# passa a 4 constantes; purchase-history vai de 5 para 4 (items+produto em um
+# JOIN só).
+SELLERS_LIST_QUERIES = 4
+SELLERS_LIST_QUERIES_12 = 4
+PURCHASE_HISTORY_QUERIES = 4
+
 
 class QueryCountMixin:
     """Conta queries SQL e, em caso de falha, mostra cada SQL executado."""
@@ -121,6 +160,32 @@ class QueryCountBase(QueryCountMixin, APITestCase):
         today = timezone.localdate()
         client = client or self.admin_client
         return client.get(f"/api/commissions/?start_date={today}&end_date={today}")
+
+    def sale_payload(self, items=None, seller=None, customer=None):
+        return {
+            "customer": (customer or self.customer).id,
+            "seller": (seller or self.sellers[0]).id,
+            "items": items or [{"product": self.products[0].id, "quantity": 1}],
+        }
+
+    def seller_client_for(self, index=0):
+        return self.authenticated_client(self.sellers[index].user)
+
+    def create_sale_via_api(self, client=None, items=None):
+        client = client or self.seller_client_for()
+        return client.post(
+            "/api/sales/", self.sale_payload(items=items), format="json"
+        )
+
+    def make_sellers(self, total):
+        """Garante `total` vendedores no total (o setUp cria 2)."""
+        while len(self.sellers) < total:
+            user = User.objects.create_user(
+                email=f"extra{len(self.sellers)}", password="123456"
+            )
+            self.sellers.append(Seller.objects.create(user=user))
+
+        return self.sellers
 
 
 class TestSaleListQueryCount(QueryCountBase):
@@ -282,3 +347,116 @@ class TestCommissionReportQueryCount(QueryCountBase):
         )
 
         self.assertEqual(total, Decimal("1.5000"))
+
+
+class TestSaleWriteQueryCount(QueryCountBase):
+    """Contagem de queries das escritas de venda.
+
+    Vale registrar a convenção: rodando dentro de ``APITestCase`` (que abre um
+    ``atomic`` externo), o ``transaction.atomic`` do serializer vira savepoint e
+    ``SAVEPOINT``/``RELEASE SAVEPOINT`` entram na contagem. Numa requisição real
+    contra o pooler, o BEGIN/COMMIT é emitido pelo psycopg2 e não aparece no log
+    — por isso a contagem de teste é 2 statements maior que a de produção.
+    """
+
+    def test_create_sale_query_count(self):
+        response = self.assertQueryCount(
+            SALE_CREATE_QUERIES, self.create_sale_via_api
+        )
+
+        self.assertEqual(response.status_code, 201)
+
+    def test_create_sale_query_count_with_three_items(self):
+        response = self.assertQueryCount(
+            SALE_CREATE_MULTI_ITEM_QUERIES,
+            self.create_sale_via_api,
+            items=[
+                {"product": self.products[0].id, "quantity": 1},
+                {"product": self.products[1].id, "quantity": 2},
+                {"product": self.products[0].id, "quantity": 3},
+            ],
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(SaleItem.objects.count(), 3)
+        # bulk_create precisa devolver o id preenchido: a resposta o expõe.
+        self.assertTrue(
+            all(item["id"] is not None for item in response.data["items"]),
+            response.data["items"],
+        )
+
+    def test_create_sale_with_insufficient_stock_query_count(self):
+        response = self.assertQueryCount(
+            SALE_CREATE_INSUFFICIENT_STOCK_QUERIES,
+            self.create_sale_via_api,
+            items=[{"product": self.products[0].id, "quantity": 100000}],
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Sale.objects.count(), 0)
+
+    def test_update_sale_query_count(self):
+        client = self.seller_client_for()
+        created = self.create_sale_via_api(client)
+        sale_id = created.data["id"]
+        payload = self.sale_payload(
+            items=[{"product": self.products[1].id, "quantity": 4}]
+        )
+
+        response = self.assertQueryCount(
+            SALE_UPDATE_QUERIES,
+            client.put,
+            f"/api/sales/{sale_id}/",
+            payload,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_cancel_sale_query_count(self):
+        client = self.seller_client_for()
+        created = self.create_sale_via_api(client)
+
+        response = self.assertQueryCount(
+            SALE_CANCEL_QUERIES,
+            self.admin_client.post,
+            f"/api/sales/{created.data['id']}/cancel/",
+            {"reason": "Cancelada para teste de contagem"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+
+class TestCollectionQueryCount(QueryCountBase):
+    """Listagens cujo custo cresce com o número de linhas da coleção."""
+
+    def test_sellers_list_query_count(self):
+        response = self.assertQueryCount(
+            SELLERS_LIST_QUERIES, self.admin_client.get, "/api/sellers/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 2)
+
+    def test_sellers_list_query_count_does_not_grow_with_sellers(self):
+        self.make_sellers(12)
+
+        response = self.assertQueryCount(
+            SELLERS_LIST_QUERIES_12, self.admin_client.get, "/api/sellers/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 12)
+
+    def test_purchase_history_query_count(self):
+        self.create_sales(3, 2)
+
+        response = self.assertQueryCount(
+            PURCHASE_HISTORY_QUERIES,
+            self.seller_client_for().get,
+            f"/api/customers/{self.customer.id}/purchase-history/",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 3)

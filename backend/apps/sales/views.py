@@ -15,12 +15,26 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
 from apps.sales.services.commission_service import calculate_commissions
-from apps.sales.services.stock_service import apply_stock_deltas, lock_products
+from apps.sales.services.stock_service import (apply_stock_deltas,
+                                               lock_products,
+                                               run_with_deadlock_retry)
 from core.permissions import IsAdminUserRole, IsOwnerSale
 
 from .models import CommissionRule, Sale, SaleChangeLog, SaleItem
 from .serializers import (CommissionReportSerializer, CommissionRuleSerializer,
                           SaleChangeLogSerializer, SaleSerializer)
+
+
+class _CancelRejected(Exception):
+    """Cancelamento recusado com uma resposta pronta.
+
+    Permite que a validação aconteça dentro do bloco atômico (e portanto com a
+    venda travada) sem que a transação tente desempacotar a Response.
+    """
+
+    def __init__(self, response):
+        super().__init__("cancelamento recusado")
+        self.response = response
 
 
 class SaleViewSet(ModelViewSet):
@@ -102,27 +116,50 @@ class SaleViewSet(ModelViewSet):
                 {"detail": "Somente administradores podem cancelar vendas."}
             )
 
+        try:
+            sale, sale_items = run_with_deadlock_retry(
+                lambda: self._cancel_once(request, pk)
+            )
+        except _CancelRejected as rejected:
+            return rejected.response
+
+        # os itens (e seus produtos) já foram lidos para repor o estoque; a
+        # resposta reaproveita essa leitura em vez de reler a venda.
+        sale._prefetched_objects_cache = {"items": sale_items}
+
+        serializer = self.get_serializer(sale)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def _cancel_once(self, request, pk):
         with transaction.atomic():
             sale = Sale.objects.select_for_update().get(pk=pk)
 
             if sale.status == Sale.STATUS_CANCELLED:
-                return Response(
-                    {"detail": "A venda já está cancelada."},
-                    status=status.HTTP_400_BAD_REQUEST,
+                raise _CancelRejected(
+                    Response(
+                        {"detail": "A venda já está cancelada."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
                 )
 
             raw_reason = request.data.get("reason")
             reason = raw_reason.strip() if isinstance(raw_reason, str) else ""
 
             if len(reason) < 10:
-                return Response(
-                    {"detail": "A justificativa é obrigatória e deve ter no mínimo 10 caracteres."},
-                    status=status.HTTP_400_BAD_REQUEST,
+                raise _CancelRejected(
+                    Response(
+                        {
+                            "detail": "A justificativa é obrigatória e deve ter no mínimo 10 caracteres."
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
                 )
+
+            sale_items = list(sale.items.select_related("product").all())
 
             quantities = defaultdict(int)
 
-            for item in sale.items.all():
+            for item in sale_items:
                 quantities[item.product_id] += item.quantity
 
             if quantities:
@@ -155,8 +192,7 @@ class SaleViewSet(ModelViewSet):
                 },
             )
 
-        serializer = self.get_serializer(sale)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+            return sale, sale_items
 
     @action(detail=True, methods=["get"], url_path="history")
     def history(self, request, pk=None):

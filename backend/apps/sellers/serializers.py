@@ -68,8 +68,10 @@ class SellerSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.CharField())
     def get_group(self, obj):
-        return (
-            obj.user.groups
-            .values_list("name", flat=True)
-            .first()
-        )
+        # `groups.all()` é o que o prefetch de `user__groups` do viewset
+        # publica no cache; values_list() aqui emitiria uma query por vendedor
+        # mesmo com o prefetch configurado.
+        for group in obj.user.groups.all():
+            return group.name
+
+        return None

@@ -79,6 +79,22 @@ class TesteSaleAPI(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_create_sale_with_nonexistent_seller_is_rejected(self):
+        # D2: a validação de seller continua happening no serializer e a
+        # resposta continua 400. Um id de seller inexistente nunca pode ser
+        # aceito, mesmo quando o token é de ADMIN.
+        payload = {
+            "customer": self.customer.id,
+            "seller": 9999,
+            "items": [{"product": self.product.id, "quantity": 1}],
+        }
+
+        response = self.client.post("/api/sales/", payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("seller", response.data)
+        self.assertEqual(Sale.objects.count(), 0)
+
     def test_sale_total_calculation(self):
         payload = {
             "customer": self.customer.id,

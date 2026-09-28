@@ -11,7 +11,12 @@ from .serializers import SellerSerializer
 
 class SellerViewSet(ModelViewSet):
 
-    queryset = Seller.objects.select_related("user").all()
+    # user vem em select_related (o serializer lê nome/e-mail) e groups em
+    # prefetch: sem isso, get_group() dispara uma query por vendedor e a
+    # listagem cresce linearmente com o tamanho da tabela.
+    queryset = Seller.objects.select_related("user").prefetch_related(
+        "user__groups"
+    ).all()
 
     serializer_class = SellerSerializer
 

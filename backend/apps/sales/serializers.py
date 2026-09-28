@@ -8,7 +8,8 @@ from rest_framework import serializers
 from apps.sales.models import Sale, SaleChangeLog, SaleItem
 from apps.sales.services.stock_service import (StockInsufficientError,
                                                apply_stock_deltas,
-                                               lock_products)
+                                               lock_products,
+                                               run_with_deadlock_retry)
 
 from .models import CommissionRule
 
@@ -35,6 +36,7 @@ class SaleItemSerializer(serializers.ModelSerializer):
 
 
 class SaleSerializer(serializers.ModelSerializer):
+    invoice_number = serializers.ReadOnlyField()
     items = SaleItemSerializer(many=True)
     total_value = serializers.SerializerMethodField()
     cancelled_by_name = serializers.SerializerMethodField()
@@ -87,9 +89,27 @@ class SaleSerializer(serializers.ModelSerializer):
 
         return quantities
 
+    def _prime_items_cache(self, sale, items):
+        """Publica `items` no cache de prefetch da venda.
+
+        A resposta da criação é montada a partir da instância devolvida por
+        `create()`. Sem este cache, `items` e `get_total_value` reliam a tabela
+        de itens e `product_description` dispara um N+1 de produtos — três
+        round-trips para devolver ao cliente as linhas que a própria requisição
+        acabou de gravar. O cache é o mesmo mecanismo que `prefetch_related`
+        usa, então `RelatedManager.all()` o devolve sem tocar o banco.
+        """
+        sale._prefetched_objects_cache = {"items": list(items)}
+        return sale
+
     def create(self, validated_data):
         items_data = validated_data.pop("items")
 
+        return run_with_deadlock_retry(
+            lambda: self._create_once(validated_data, items_data)
+        )
+
+    def _create_once(self, sale_data, items_data):
         with transaction.atomic():
             quantities = self._stocks_consumption(items_data)
 
@@ -100,17 +120,26 @@ class SaleSerializer(serializers.ModelSerializer):
             except StockInsufficientError as exc:
                 raise serializers.ValidationError({"items": str(exc)}) from exc
 
-            sale = Sale.objects.create(**validated_data)
+            sale = Sale.objects.create(**sale_data)
 
-            for item_data in items_data:
-                SaleItem.objects.create(
-                    sale=sale,
-                    product=item_data["product"],
-                    quantity=item_data["quantity"],
-                    unit_price=item_data["product"].unit_price,
-                )
+            # bulk_create não passa por SaleItem.save(), que é quem preenche
+            # unit_price no insert; o preço é copiado do produto aqui para
+            # manter exatamente o mesmo valor. Os objetos retornados já chegam
+            # com o id preenchido (o PostgreSQL devolve o RETURNING), que é o
+            # que a resposta expõe.
+            created_items = SaleItem.objects.bulk_create(
+                [
+                    SaleItem(
+                        sale=sale,
+                        product=item_data["product"],
+                        quantity=item_data["quantity"],
+                        unit_price=item_data["product"].unit_price,
+                    )
+                    for item_data in items_data
+                ]
+            )
 
-        return sale
+        return self._prime_items_cache(sale, created_items)
 
     def _snapshot(self, sale):
         seller = sale.seller
@@ -207,18 +236,23 @@ class SaleSerializer(serializers.ModelSerializer):
         return fields
 
     def update(self, instance, validated_data):
-        before = self._snapshot(instance)
-
         items_data = validated_data.pop("items", None)
 
         # Cliente é imutável na edição (ADMIN e SELLER)
         validated_data.pop("customer", None)
 
+        return run_with_deadlock_retry(
+            lambda: self._update_once(instance, validated_data, items_data)
+        )
+
+    def _update_once(self, instance, sale_data, items_data):
+        before = self._snapshot(instance)
+
         with transaction.atomic():
             # Serializa edições concorrentes na mesma venda
             Sale.objects.select_for_update().get(pk=instance.pk)
 
-            instance.seller = validated_data.get('seller', instance.seller)
+            instance.seller = sale_data.get("seller", instance.seller)
 
             instance.save()
 
@@ -284,6 +318,7 @@ class SaleSerializer(serializers.ModelSerializer):
 
 
 class CustomerPurchaseHistorySerializer(serializers.ModelSerializer):
+    invoice_number = serializers.ReadOnlyField()
     items = SaleItemSerializer(many=True, read_only=True)
     total_value = serializers.SerializerMethodField()
     seller_name = serializers.SerializerMethodField()

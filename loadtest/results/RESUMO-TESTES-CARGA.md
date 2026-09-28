@@ -311,8 +311,8 @@ O L2 foi previamente validado (P5) em banco de teste com `CaptureQueriesContext`
 `/api/sales/`, `/api/products/`, `/api/commissions/` e uma URL inexistente **todos retornam
 exatamente 0 statements** sem token.
 
-O L2 é o resultado mais importante da fase: **nginx + Gunicorn + Django/DRFResponse custam ~2 ms
-por requisição.** Todo o resto é espera de banco.
+O L2 é o resultado mais importante da fase: **nginx + Gunicorn + Django/DRF custam ~2 ms por
+requisição.** Todo o resto é espera de banco.
 
 ### 8.4 Atribuição
 
@@ -372,14 +372,18 @@ ocorreu nesta rodada, ao contrário do anecdote da seção 7.5.
 O E3 é um run único e contínuo, conforme planejado, então o volume de vendas cresce ao longo dos
 patamares. Cada POST 201 adiciona linhas, e os listagens leem a coleção inteira:
 
-| Patamar | vendas criadas no patamar | vendas acumuladas ao fim |
+| Patamar | vendas criadas (POST 201) | acumuladas ao fim do patamar |
 |---|---|---|
-| 1 VU | 41 | 53 |
-| 4 VUs | 165 | 218 |
-| 8 VUs | 278 | 496 |
-| 16 VUs | 313 | 809 |
-| 32 VUs | 232 | 1.041 |
-| 50 VUs | 190 | 1.231 |
+| 1 VU | 44 | 56 |
+| 4 VUs | 131 | 187 |
+| 8 VUs | 266 | 453 |
+| 16 VUs | 296 | 749 |
+| 32 VUs | 304 | 1.053 |
+| 50 VUs | 327 | 1.380 |
+
+Total registrado pelo k6: 1.368 POST 201. A limpeza removeu 1.394 vendas de carga; a diferença de 26
+corresponde a transações confirmadas no banco cuja resposta HTTP não chegou ao cliente (o run teve 37
+iterações interrompidas), o que é consistente e não indica venda órfã.
 
 Consequência: parte do crescimento de `GET /api/sales/` e `GET /api/commissions/` entre patamares é
 volume, não concorrência. O `POST /api/sales/` foi criado como endpoint de referência porque seu
@@ -413,6 +417,19 @@ carga com mais de 15 min precisa prever renovação de token**.
 | Resíduo de carga (vendas/clientes/produtos/sellers) | 0 / 0 / 0 / 0 |
 | Estoque dos produtos reais | inalterado |
 
+### 8.9.1 Instabilidade de rede posterior às medições
+
+Depois de encerrados os testes (E4 terminou 19:24 UTC) e **depois** da verificação de integridade
+das 19:5x UTC, o pooler passou a apresentar timeout de TCP na porta 6543 em todos os IPs resolvidos
+(`44.208.221.186`, `44.216.29.125`, `52.45.94.125`), de forma intermitente: a porta voltava a aceitar
+conexão e a recusar em minutos alternados. A API passou a devolver 500 por inability de alcançar o
+banco nesse intervalo.
+
+Isso **não afeta nenhum resultado desta fase**: todas as medições ocorreram entre 18:01 e 19:24 UTC,
+com gate 10/10 aprovado antes de cada fase e 511/511 sondas de `SELECT 1` bem-sucedidas, sem uma
+única falha ou reconexão. É a mesma instabilidade de rede já registrada na seção 7.5.3, e por
+instrução explícita não é atribuída à aplicação.
+
 ### 8.10 Conclusão
 
 1. **A latência não está no código da aplicação.** nginx + Gunicorn + Django/DRF respondem uma
@@ -428,3 +445,91 @@ carga com mais de 15 min precisa prever renovação de token**.
    eliminação das queries de montagem de resposta), não aumentar paralelismo.
 
 Nenhuma destas cinco conclusões foi implementada: esta fase foi estritamente de medição.
+
+---
+
+## 9. Fase 5 — otimização do fluxo de escrita e listagens (2026-09-28)
+
+**Escopo congelado nesta etapa:** A (prefetch na resposta), B (`bulk_create` de itens), C (baixa de
+estoque em statement único + retry de deadlock), D2 (validação estrita de vendedor), F1 (remoção da
+coluna `invoice_number`) e correções de listagem (prefetch e filtro sargable + índice em `date`).
+**Fora do escopo:** paginação e otimização G (ver §9.4).
+
+### 9.1 Mudanças e contagem de statements (testes determinísticos)
+
+| Endpoint | Baseline | Final | Observação |
+|---|---|---|---|
+| `POST /api/sales/` (1 item) | 16 | 12 | produção = 10 (savepoints só em teste) |
+| `POST /api/sales/` (3 itens) | 23 | 14 | validação de produto: 1 query por item |
+| `POST /api/sales/` (estoque insuficiente) | 12 | 12 | 400 antes do INSERT — não muda |
+| `PUT /api/sales/{id}/` | 34 | 33 | 1 statement economizado |
+| `POST /api/sales/{id}/cancel/` | 17 | 14 | |
+| `GET /api/sellers/` (2 sellers) | 5 | 4 | `prefetch_related("user__groups")` |
+| `GET /api/sellers/` (12 sellers) | 15 | 4 | N+1 de grupos eliminado |
+| `GET /api/customers/{id}/purchase-history/` | 5 | 4 | `Prefetch` com `select_related("product")` |
+| `GET /api/commissions/` | 5 | 4 | filtro sargable em UTC + índice (não mediado antes) |
+
+- **F1**: `invoice_number` virou property (`f"{pk:06d}"`), removida a coluna (migração `0004`, com
+  pré-condição documentada — **0 divergentes / 0 nulos** em 90 vendas no banco isolado). Elimina o
+  `UPDATE` de padronização do create.
+- **C**: `UPDATE products_product ... FROM (VALUES ...) RETURNING id` com guarda de estoque,
+  todos os produtos em 1 statement, `SELECT ... FOR UPDATE` ou re-`UPDATE` só em erro,
+  fallback 1-a-1 fora do PostgreSQL, e retry de deadlock (3 tentativas, backoff 0,05 s) ligado no
+  create/update/cancel.
+- **Comissões**: `date__date__range` “queimava” a coluna (`date::date`) e deslocava a fronteira 3 h
+  (sessão PG em UTC vs `TIME_ZONE=America/Sao_Paulo`). Substituído por limites UTC explícitos —
+  3 testes de fronteira falham com a versão antiga. Índice em `date` (migração `0005`).
+
+Validação: **154/154 testes** (baseline 142) — inclui regressão D2 (vendedor inexistente → 400, sem
+linha criada) e 3 testes de fronteira UTC. Gates k6 de corretude sob concorrência: estoque 50/20/0 e
+cancelamento 40/40/0, **0 erros 5xx**.
+
+### 9.2 Medições locais (ambiente isolado, 8 CPUs, Postgres local 4w/4t)
+
+**E1 (1 VU, ~1.500 reqs por rodada, 2 rodadas em ordem invertida)** — melhoria confirmada:
+
+| Endpoint | Rodada 1 | Rodada 2 |
+|---|---|---|
+| `POST /api/sales/` | 33,02 → 30,62 ms (**−7,3%**) | 32,16 → 30,74 ms (**−4,4%**) |
+| purchase-history | 110,8 → 100,1 ms (**−9,6%**) | 102,1 → 98,6 ms (**−3,4%**) |
+| `/commissions/` | +6,4% (ver artefato §9.3) | +9,6% |
+| Agregado | avg 45,58 → 41,51 ms (**−8,9%**), p99 243 → 221 | ~flat |
+
+**E3 (saturação, workload misto, patamares crescente)** — **inconclusivo**: req/s 7,69 → 7,18,
+avg 1,71 s → 1,86 s, mas **p95 estável** (8,68 → 8,62 s) e 0 erros 5xx. Cada rodada parte de tamanho
+de tabela diferente (a baseline criou **mais** vendas e ainda assim foi mais rápida no agregado), e o
+ambiente mostrou variação de ±7–10% conforme o que roda no host. **Não reporta regressão nem ganho
+de saturação.**
+
+### 9.3 Artefato de medição identificado
+
+Medir o mesmo endpoint com **os dois servidores A/B ligados simultaneamente** no host de 8 núcleos
+distorce a comparação em até ±10% (dois gunicorn 4w/4t disputam CPU/L2). O aparente +6–9% em
+`/commissions/` (E1) desapareceu ao medir **um servidor por vez**: filtro novo 3,5× mais rápido no
+`EXPLAIN` (0,18 vs 0,62 ms), mesma contagem de 4 queries, loop in-process com DB 9,7 → 8,2 ms e k6
+com um servidor ligado → **−7,2% avg / −8,5% mediano**.
+
+**Regra para próximas rodadas:** nos A/B locais, derrubar o servidor da outra variante antes de medir.
+
+### 9.4 Pendências para a próxima etapa
+
+1. **Otimização G — validação em lote de produtos (não implementada).** O DRF valida o campo
+   `product` com 1 query por item (`PrimaryKeyRelatedField`); para uma venda de N itens são N
+   queries. Validar todos os ids em 1 statement economiza 2 queries numa venda de 3 itens (POST
+   14 → 12). **Não afeta o payload de 1 item** e a ordem de erro não muda, mas o formato/contrato de
+   erro para id de produto inválido precisa ser congelado por teste antes. Descartada nesta etapa.
+2. **`get_object()` duplicado no `update()` (não implementado).** `SaleViewSet.update()` chama
+   `get_object()` duas vezes (`backend/apps/sales/views.py`, ~linhas 72–88), ≈10 statements
+   duplicados por PUT. Corrigir chamando uma única vez e reaproveitando o objeto — fora do escopo
+   atual porque o PUT não governa o p95 do `POST`/os roles.
+
+### 9.5 Limite de interpretação — não extrapolar para produção
+
+Todos os números desta fase são **locais** (Postgres local, tabela pequena, seed determinístico). O
+**pooler transacional de produção permanece inacessível** neste host, portanto:
+- a pré-condição do F1 foi verificada apenas no banco isolado (0 divergentes / 0 nulos);
+- as contagens de statements valem também em produção (são invariantes de plano, não de latência),
+  mas a **latência absoluta e a saturação não se comparam** com os valores remotos da Fase 4
+  (~146 ms/statement, p50 POST 2,4 s);
+- aplicar a migração `0005` em produção com tabela grande deve usar `AddIndexConcurrently` (o
+  `CREATE INDEX` não-concorrente trava escrita).

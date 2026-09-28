@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
 
 from django.db.models import Prefetch
@@ -48,9 +49,29 @@ def calculate_sale_commission(sale, rule=None, rules=None, items=None):
     return total
 
 
+def _utc_day_bounds(start_date, end_date):
+    """Traduz um intervalo de dias em limites de instantes, para o filtro.
+
+    A versão anterior usava ``date__date__range``, que involves a coluna
+    timestamptz num DATE(): sem índice utilizável, e o dia passa a depender do
+    timezone da sessão do PostgreSQL (UTC, que é o default do servidor e o que
+    o Django deixa). Os limites abaixo são o mesmo predicado escrito de forma
+    indexável, com o dia contado em UTC. Montá-los com o timezone do app
+    (America/Sao_Paulo) mudaria o resultado em 3 horas na fronteira do dia.
+    """
+    start = datetime.combine(start_date, time.min, tzinfo=UTC)
+    end_exclusive = datetime.combine(
+        end_date + timedelta(days=1), time.min, tzinfo=UTC
+    )
+
+    return start, end_exclusive
+
+
 def calculate_commissions(start_date, end_date):
+    start_at, end_before = _utc_day_bounds(start_date, end_date)
+
     sales = (
-        Sale.objects.filter(date__date__range=[start_date, end_date])
+        Sale.objects.filter(date__gte=start_at, date__lt=end_before)
         .exclude(status=Sale.STATUS_CANCELLED)
         .select_related("seller__user")
         .prefetch_related(
