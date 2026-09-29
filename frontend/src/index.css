@@ -1,5 +1,105 @@
 @import "tailwindcss";
 
+/* Dark mode por atributo (data-theme) em vez de prefers-color-scheme.
+   data-theme é definido no <html> pelo script inline do index.html (sem
+   FOUC) e atualizado pelo themeService. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Paletas de accent: redefinem a escala teal (usada em todo o app) via CSS
+   variables do Tailwind v4, então todo utilitário teal-* troca de cor. */
+[data-accent="blue"] {
+  --color-teal-50: #eff6ff;
+  --color-teal-100: #dbeafe;
+  --color-teal-200: #bfdbfe;
+  --color-teal-500: #3b82f6;
+  --color-teal-600: #2563eb;
+  --color-teal-700: #1d4ed8;
+  --color-teal-800: #1e40af;
+}
+
+[data-accent="indigo"] {
+  --color-teal-50: #eef2ff;
+  --color-teal-100: #e0e7ff;
+  --color-teal-200: #c7d2fe;
+  --color-teal-500: #6366f1;
+  --color-teal-600: #4f46e5;
+  --color-teal-700: #4338ca;
+  --color-teal-800: #3730a3;
+}
+
+[data-accent="violet"] {
+  --color-teal-50: #f5f3ff;
+  --color-teal-100: #ede9fe;
+  --color-teal-200: #ddd6fe;
+  --color-teal-500: #8b5cf6;
+  --color-teal-600: #7c3aed;
+  --color-teal-700: #6d28d9;
+  --color-teal-800: #5b21b6;
+}
+
+[data-accent="crimson"] {
+  --color-teal-50: #fff1f2;
+  --color-teal-100: #ffe4e6;
+  --color-teal-200: #fecdd3;
+  --color-teal-500: #f43f5e;
+  --color-teal-600: #e11d48;
+  --color-teal-700: #be123c;
+  --color-teal-800: #9f1239;
+}
+
+[data-accent="amber"] {
+  --color-teal-50: #fffbeb;
+  --color-teal-100: #fef3c7;
+  --color-teal-200: #fde68a;
+  --color-teal-500: #f59e0b;
+  --color-teal-600: #d97706;
+  --color-teal-700: #b45309;
+  --color-teal-800: #92400e;
+}
+
+/* Em tema escuro, inverte a escala slate (usada como superfícies e textos
+   neutros) e o branco vira a cor dos cards. O teal (accent) é mantido. */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-slate-50: #0f172a;
+  --color-slate-100: #334155;
+  --color-slate-200: #475569;
+  --color-slate-300: #64748b;
+  --color-slate-400: #a6b0c0;
+  --color-slate-500: #cbd5e1;
+  --color-slate-600: #e2e8f0;
+  --color-slate-700: #f1f5f9;
+  --color-slate-800: #f8fafc;
+  --color-slate-900: #ffffff;
+  --color-white: #1e293b;
+}
+
+/* No tema escuro os controles de formulário (inputs, selects, textareas)
+   herdam texto escuro por padrão. Aqui garantimos texto claro, placeholder
+   legível e ícone de calendário claro — sem alterar backgrounds/bordas. */
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  color: var(--color-slate-700);
+}
+
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: var(--color-slate-400);
+  opacity: 1;
+}
+
+[data-theme="dark"] input:disabled,
+[data-theme="dark"] select:disabled,
+[data-theme="dark"] textarea:disabled {
+  color: var(--color-slate-500);
+}
+
+[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+
 :root {
   --text: #6b6375;
   --text-h: #08060d;
@@ -19,7 +119,7 @@
 
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
-  color-scheme: light dark;
+  color-scheme: light;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
@@ -29,26 +129,6 @@
 
   @media (max-width: 1024px) {
     font-size: 16px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
   }
 }
 
@@ -110,44 +190,44 @@ code {
 }
 
 .custom-scroll::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: var(--color-slate-100);
 }
 
 .custom-scroll::-webkit-scrollbar-thumb {
-  background-color: #0f766e; 
+  background-color: var(--color-teal-600);
   border-radius: 8px;
 }
 
 .custom-scroll::-webkit-scrollbar-thumb:hover {
-  background-color: #115e59; 
+  background-color: var(--color-teal-700);
 }
 
 /* Firefox */
 .custom-scroll {
   scrollbar-width: thin;
-  scrollbar-color: #0f766e #f1f5f9;
+  scrollbar-color: var(--color-teal-600) var(--color-slate-100);
 }
 
-/* Padrão global de scroll da aplicação (paleta teal) */
+/* Padrão global de scroll da aplicação (paleta do accent) */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: var(--color-slate-100);
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: #0f766e;
+  background-color: var(--color-teal-600);
   border-radius: 8px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #115e59;
+  background-color: var(--color-teal-700);
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #0f766e #f1f5f9;
+  scrollbar-color: var(--color-teal-600) var(--color-slate-100);
 }

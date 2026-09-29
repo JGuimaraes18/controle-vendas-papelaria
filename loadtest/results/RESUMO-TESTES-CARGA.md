@@ -1,7 +1,7 @@
 # Relatório de Testes de Carga e Stress (k6)
 
 **Data:** 2026-09-24
-**Alvo:** Spassu (API de controle de vendas)
+**Alvo:** API de controle de vendas
 **Ferramenta:** k6 v2.3.0 (imagem `grafana/k6:latest`), executado via `docker run --network host`
 **Ambientes testados:** Desenvolvimento (Postgres local) e Produção (Postgres remoto via pooler Supabase transacional, porta 6543)
 **Resultados brutos:** `loadtest/results/{dev,prod}-*.test.json`
@@ -533,3 +533,70 @@ Todos os números desta fase são **locais** (Postgres local, tabela pequena, se
   (~146 ms/statement, p50 POST 2,4 s);
 - aplicar a migração `0005` em produção com tabela grande deve usar `AddIndexConcurrently` (o
   `CREATE INDEX` não-concorrente trava escrita).
+
+---
+
+## 10. §13 — Relatório de finalização: UX, dashboard, perfil/tema e auditoria (2026-09-29)
+
+**Escopo:** desenvolvimento **somente no ambiente DEV** (`docker-compose-dev.yml`). Nenhuma
+alteração foi aplicada a PROD/Supabase; nenhuma migração foi gerada; nada foi commitado. Fases A→H
+do plano aprovado.
+
+### 10.1 Fases entregues
+
+| Fase | Entrega | Resultado |
+|---|---|---|
+| **A+B** | Paginação server-side de vendas (10/25/50, default 25) + filtros (`customer`, `seller`, `status`, `start_date`/`end_date` UTC, `invoice`, `min_value`/`max_value`, `search`) + ordenação whitelist (default `-date`) | 126 testes de vendas OK; lista sem `UnorderedObjectListWarning` |
+| **C** | `GET /api/users/me/` + `POST /api/users/me/change_password/` (senha antiga validada, sessão mantida) | 26 testes OK |
+| **D** | Tema claro/escuro/sistema + 6 accents com anti-FOUC no `index.html` (inversão da escala slate via `data-theme`) | build OK; CSS compilado verificado |
+| **E** | ToastProvider, drawer mobile, dropdown de usuário, skeleton/empty state na listagem | build OK |
+| **F** | `GET /api/dashboard/` (revenue, completas, canceladas, ticket médio, receita diária, top produtos, top vendedores admin-only) + timeout | 9 testes OK |
+| **G** | `SaleChangeLog` também na **criação** da venda (`{"created": true}`), viabilizando a linha do tempo completa | 213 testes backend OK |
+| **H** | Vitest 4 + Testing Library + jsdom configurados; 19 testes (utils, themeService, authService, Toast) | `npm test` 19/19 OK |
+
+Frontend: `npm run build` (tsc + vite) OK em todas as fases. Backend: suíte completa **213/213 OK**
+(inclui 9 novos do dashboard e os counts de escrita atualizados abaixo).
+
+### 10.2 Números de queries finais (invariantes, testes determinísticos)
+
+| Endpoint | Antes | Depois | Observação |
+|---|---|---|---|
+| `POST /api/sales/` (1 item) | 12 | **13** | +1 = INSERT do log de criação (sem SELECT extra) |
+| `POST /api/sales/` (3 itens, 2 produtos) | 14 | **15** | idem |
+| `POST /api/sales/` (estoque insuficiente) | 12 | 12 | 400 antes do INSERT — log não é gravado |
+| Listagem/relatórios | — | 3–5 | sem N+1 (Fase 3 mantido) |
+
+### 10.3 Nota técnica — agregação do dashboard
+
+O primeiro desenho de `top_products`/`top_sellers` usava `.order_by()` sobre anotação de
+`Sum(F*F)`, e o Django re-resolve o mesmo nó da expressão na cláusula ORDER BY (erro
+`Cannot compute Sum(...): ... is an aggregate`), reprodutível inclusive sem `order_by` após outras
+agregações no mesmo fluxo. Solução: **agregação em Python** sobre vendas já carregadas com
+`prefetch_related` (mesmo padrão do relatório de comissões), eliminando o `Sum(F*F)` com GROUP BY
+do caminho crítico — volume do período é pequeno e o número de queries é constante (2 + count).
+
+### 10.4 Auditoria e linha do tempo
+
+- Criação via API grava `SaleChangeLog` (`fields_changed={"created": true}`, usuário autenticado já
+  carregado — custo de exatamente 1 INSERT).
+- Criação fora da API (ORM) não gera log; vendas legadas seguem mostrando apenas edições/cancelamentos.
+- Frontend renderiza `GET /api/sales/{id}/history/` como **linha do tempo**: marco de criação
+  (teal), cancelamento (rose) e atualizações (âmbar) com diffs de itens/cliente/vendedor/status.
+
+### 10.5 Validação manual (smoke via nginx em `http://localhost`, credenciais DEV)
+
+- `POST /api/login/` → token; `GET /api/users/me/` → `admin@email.com ['ADMIN']`.
+- `GET /api/sales/?page=1&page_size=50&status=COMPLETED` → envelope `{count, next, previous, results}`.
+- Período sem vendas → `count 0`; `page_size=7` → 400 com mensagem.
+- `GET /api/dashboard/?start_date=..&end_date=..` → summary/daily/top produtos/top vendedores OK;
+  default = mês atual.
+- Criação de venda via API → `history` devolve `[{'created': True}]` com usuário e `changed_at`.
+- SPA: `/`, `/vendas`, `/perfil` → 200.
+
+### 10.6 Decisões mantidas e pendências
+
+- **Pendências herdadas** (não alteradas nesta etapa): validação em lote de produtos da otimização G
+  (§9.4.1), `get_object()` duplicado no `update()` (§9.4.2), migrações decorativas pendentes (Fase 2),
+  e `npm run lint` com erros pré-existentes de `set-state-in-effect` (código antigo).
+- **Novo**: nenhuma migração criada; nenhum dado produzido em prod; ambiente DEV íntegro após os
+  testes (213 backend + 19 frontend + build, com estoque dos produtos reais inalterado).

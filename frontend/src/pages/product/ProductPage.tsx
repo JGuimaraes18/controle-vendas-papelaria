@@ -56,7 +56,7 @@ export default function ProductsPage() {
         {isAdmin() && (
           <button
             onClick={() => navigate("/produtos/novo")}
-            className="bg-teal-700 text-white px-4 py-1.5 text-xs rounded hover:bg-teal-800 order-3 xs:order-3 transition-colors shrink-0"
+            className="bg-teal-700 text-[#fff] px-4 py-1.5 text-xs rounded hover:bg-teal-800 order-3 xs:order-3 transition-colors shrink-0"
           >
             Novo Produto
           </button>

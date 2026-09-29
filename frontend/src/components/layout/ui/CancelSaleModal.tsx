@@ -61,7 +61,7 @@ export default function CancelSaleModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50 p-4">
       <div className="bg-white w-full max-w-[400px] rounded-xl shadow-xl border border-slate-100 p-4 animate-in fade-in zoom-in-95 duration-200">
         <div className="flex justify-between items-start mb-3">
           <div className="flex items-center gap-2">
@@ -136,7 +136,7 @@ export default function CancelSaleModal({
           <button
             onClick={handleCancel}
             disabled={submitting}
-            className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700 active:scale-95 transition-all shadow-sm shadow-rose-600/10 disabled:opacity-50"
+            className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 text-[#fff] hover:bg-rose-700 active:scale-95 transition-all shadow-sm shadow-rose-600/10 disabled:opacity-50"
           >
             {submitting ? "Cancelando..." : "Cancelar venda"}
           </button>

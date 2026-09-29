@@ -252,7 +252,7 @@ export default function ProductForm({
 
             <button
               onClick={handleSubmit}
-              className="px-5 bg-teal-600 text-white py-1.5 rounded-lg text-xs font-bold shadow-sm hover:bg-teal-700 active:scale-[0.98] transition-all"
+              className="px-5 bg-teal-600 text-[#fff] py-1.5 rounded-lg text-xs font-bold shadow-sm hover:bg-teal-700 active:scale-[0.98] transition-all"
             >
               {initialData
                 ? "Alterar Produto"

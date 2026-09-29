@@ -139,6 +139,19 @@ class SaleSerializer(serializers.ModelSerializer):
                 ]
             )
 
+            user = getattr(self.context.get("request"), "user", None)
+
+            # Trilha de auditoria também na criação: o marcador "created"
+            # permite ao frontend desenhar o marco inicial da linha do tempo
+            # ("venda criada") além dos eventos de edição/cancelamento. Sem
+            # caminho de estoque insuficiente, o INSERT nem chega a acontecer.
+            if user is not None and user.is_authenticated:
+                SaleChangeLog.objects.create(
+                    sale=sale,
+                    user=user,
+                    fields_changed={"created": True},
+                )
+
         return self._prime_items_cache(sale, created_items)
 
     def _snapshot(self, sale):

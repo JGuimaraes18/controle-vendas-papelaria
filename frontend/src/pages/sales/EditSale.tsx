@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getSales, updateSale } from "../../services/salesService";
+import { getSale, updateSale } from "../../services/salesService";
 import type { Sale } from "../../types/Sale";
 import SaleForm from "../../components/layout/ui/SaleForm";
 
@@ -29,24 +29,32 @@ export default function EditSalePage() {
 
   useEffect(() => {
     async function loadSale() {
-      const sales = await getSales();
-      const current = sales.find(s => s.id === Number(id));
-      if (current) setSale(current);
+      try {
+        const current = await getSale(Number(id));
+        setSale(current);
+      } catch (error) {
+        navigate("/vendas", {
+          state: {
+            message: "Não foi possível carregar a venda.",
+            type: "error",
+          },
+        });
+      }
     }
     loadSale();
-  }, [id]);
+  }, [id, navigate]);
 
   const handleUpdate = async (payload: any) => {
     try {
       await updateSale(Number(id), payload);
-      navigate("/", {
+      navigate("/vendas", {
         state: {
         message: "Venda atualizada com sucesso!",
         type: "success"
         }
       });
     } catch (error) {
-      navigate("/", {
+      navigate("/vendas", {
         state: { 
           message: extractErrorMessage(error),
           type: "error"

@@ -1,6 +1,7 @@
 import SaleForm from "../../components/layout/ui/SaleForm";
 import { createSale } from "../../services/salesService";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "../../components/ui/Toast";
 
 function extractErrorMessage(error: unknown): string {
   const data = (error as { response?: { data?: unknown } })?.response?.data;
@@ -22,22 +23,19 @@ function extractErrorMessage(error: unknown): string {
 
 export default function CreateSalePage() {
   const navigate = useNavigate();
+  const toast = useToast();
 
   const handleCreate = async (payload: any) => {
     try {
       await createSale(payload);
-      navigate("/", {
-        state: {
-        message: "Venda criada com sucesso!",
-        type: "success"
-        }
-      });
+      toast.success("Venda criada com sucesso!");
+      navigate("/vendas");
     } catch (error) {
-      navigate("/", {
-        state: { 
-        message: extractErrorMessage(error),
-        type: "error"
-        }
+      navigate("/vendas", {
+        state: {
+          message: extractErrorMessage(error),
+          type: "error",
+        },
       });
     }
   };

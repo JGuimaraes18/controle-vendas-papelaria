@@ -41,7 +41,9 @@ export async function login(credentials: LoginCredentials): Promise<AuthResponse
 }
 
 export function logout() {
-  localStorage.clear();
+  localStorage.removeItem("token");
+  localStorage.removeItem("refresh");
+  localStorage.removeItem("user");
 }
 
 export function isAdmin() {

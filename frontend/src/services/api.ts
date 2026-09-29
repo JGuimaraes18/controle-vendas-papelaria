@@ -7,6 +7,12 @@ export const api = axios.create({
   },
 });
 
+function clearAuth() {
+  localStorage.removeItem("token");
+  localStorage.removeItem("refresh");
+  localStorage.removeItem("user");
+}
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
 
@@ -28,7 +34,7 @@ api.interceptors.response.use(
       const refresh = localStorage.getItem("refresh");
 
       if (!refresh) {
-        localStorage.clear();
+        clearAuth();
         window.location.href = "/login";
         return Promise.reject(error);
       }
@@ -47,7 +53,7 @@ api.interceptors.response.use(
 
         return api(originalRequest);
       } catch (err) {
-        localStorage.clear();
+        clearAuth();
         window.location.href = "/login";
         return Promise.reject(err);
       }

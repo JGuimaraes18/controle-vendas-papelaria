@@ -187,7 +187,7 @@ class SaleAuthorizationTest(APITestCase):
         response = self.client.get("/api/sales/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        ids = [sale["id"] for sale in response.data]
+        ids = [sale["id"] for sale in response.data["results"]]
         self.assertIn(self.sale_seller1.id, ids)
         self.assertNotIn(self.sale_seller2.id, ids)
 
@@ -242,7 +242,7 @@ class SaleAuthorizationTest(APITestCase):
         response = self.client.get("/api/sales/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
+        self.assertEqual(len(response.data["results"]), 2)
 
     def test_admin_can_create_sale_for_any_seller(self):
         self._auth(self.admin)
@@ -382,7 +382,7 @@ class SaleChangeLogTest(APITestCase):
         self.assertIsNotNone(log.changed_at)
         self.assertIn("items", log.fields_changed)
 
-    def test_create_sale_does_not_create_change_log(self):
+    def test_create_sale_creates_creation_change_log(self):
         self._auth(self.admin)
 
         response = self.client.post(
@@ -390,7 +390,11 @@ class SaleChangeLogTest(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(SaleChangeLog.objects.count(), 0)
+
+        log = SaleChangeLog.objects.get()
+        self.assertEqual(log.user, self.admin)
+        self.assertIsNotNone(log.changed_at)
+        self.assertEqual(log.fields_changed, {"created": True})
 
     def test_multiple_updates_create_multiple_logs(self):
         self._auth(self.admin)
@@ -654,7 +658,7 @@ class SaleOrderingTest(APITestCase):
         response = self.client.get("/api/sales/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        ids = [sale["id"] for sale in response.data]
+        ids = [sale["id"] for sale in response.data["results"]]
         self.assertEqual(ids[0], newer.id)
         self.assertEqual(ids[1], older.id)
 
@@ -1071,7 +1075,8 @@ class SaleStockConsumptionTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(self._stock(), 98)
         self.assertEqual(sale.items.get().quantity, 2)
-        self.assertEqual(SaleChangeLog.objects.count(), 0)
+        # apenas o log de criação da venda existe; o PUT recusado não loga
+        self.assertEqual(SaleChangeLog.objects.count(), 1)
 
     def test_cancel_returns_stock(self):
         self.client.post("/api/sales/", self._payload(), format="json")

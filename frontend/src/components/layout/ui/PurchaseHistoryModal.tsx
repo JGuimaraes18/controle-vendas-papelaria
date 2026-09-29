@@ -81,7 +81,7 @@ export default function PurchaseHistoryModal({
 
   if (selected) {
     return (
-      <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center z-50 p-4">
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50 p-4">
         <div className="bg-white w-full max-w-[560px] rounded-xl shadow-xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
           <div className="flex justify-between items-center px-4 py-3 border-b border-slate-100">
             <div className="flex items-center gap-2">
@@ -212,7 +212,7 @@ export default function PurchaseHistoryModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center z-50 p-4">
       <div className="bg-white w-full max-w-[560px] rounded-xl shadow-xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         <div className="flex justify-between items-center px-4 py-3 border-b border-slate-100">
           <div className="flex items-center gap-2">

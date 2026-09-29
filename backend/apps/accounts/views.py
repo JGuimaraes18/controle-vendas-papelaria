@@ -1,4 +1,6 @@
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.exceptions import PermissionDenied
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -7,7 +9,8 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from core.permissions import IsSelfOrAdmin
 
 from .models import User
-from .serializers import UserSerializer
+from .serializers import (ChangePasswordSerializer, CurrentUserSerializer,
+                          UserSerializer)
 
 
 class UserViewSet(ModelViewSet):
@@ -46,6 +49,27 @@ class UserViewSet(ModelViewSet):
 
         instance.is_active = False
         instance.save(update_fields=["is_active"])
+
+    @action(detail=False, methods=["get"], url_path="me")
+    def me(self, request):
+        """Perfil do usuário autenticado (somente leitura)."""
+        serializer = CurrentUserSerializer(request.user)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=["post"], url_path="change-password")
+    def change_password(self, request):
+        """Altera a senha do próprio usuário autenticado."""
+        serializer = ChangePasswordSerializer(
+            data=request.data,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+
+        user = request.user
+        user.set_password(serializer.validated_data["new_password"])
+        user.save(update_fields=["password"])
+
+        return Response({"detail": "Senha alterada com sucesso."})
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):

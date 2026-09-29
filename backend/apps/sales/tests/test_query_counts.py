@@ -24,8 +24,13 @@ User = get_user_model()
 # autenticação já o carregou antes), enquanto a requisição HTTP paga a busca do
 # usuário feita pelo SimpleJWT. Ambas são constantes, nunca proporcionais ao
 # número de vendas, itens ou vendedores.
+#
+# A listagem de vendas passa a ser paginada (envelope {count, results}): a
+# contagem do total (SELECT COUNT) soma uma query à requisição. Serialização
+# direta = 3 (groups do scoping + SELECT principal + prefetch de items);
+# requisição HTTP = 3 + user do JWT + COUNT = 5.
 SALES_SERIALIZATION_QUERIES = 3
-SALES_REQUEST_QUERIES = 4
+SALES_REQUEST_QUERIES = 5
 COMMISSION_SERVICE_QUERIES = 3
 COMMISSION_REQUEST_QUERIES = 5
 
@@ -51,12 +56,15 @@ COMMISSION_REQUEST_QUERIES = 5
 # não precisa mais ser seguido do UPDATE que preenchia a coluna. Com 1 produto
 # o total do POST fica em 12 statements (+2 de savepoint no teste) contra 16 do
 # baseline. Com 3 itens em 2 produtos, 14.
+# Passo G (log de criação) aplicado: o POST grava também a entrada inicial do
+# SaleChangeLog ("created"), +1 statement, sem SELECT extra (o usuário
+# autenticado já está carregado e o marcador é fixo).
 #
 # O caminho de estoque insuficiente e o PUT não mudam: no primeiro o INSERT nem
 # chega a acontecer, e no segundo o save() gravava data/status/customer/seller
 # num UPDATE só, que apenas perdeu uma coluna.
-SALE_CREATE_QUERIES = 12
-SALE_CREATE_MULTI_ITEM_QUERIES = 14
+SALE_CREATE_QUERIES = 13
+SALE_CREATE_MULTI_ITEM_QUERIES = 15
 SALE_CREATE_INSUFFICIENT_STOCK_QUERIES = 12
 SALE_UPDATE_QUERIES = 33
 SALE_CANCEL_QUERIES = 14
@@ -216,8 +224,10 @@ class TestSaleListQueryCount(QueryCountBase):
 
         self.assertEqual(small.status_code, 200)
         self.assertEqual(large.status_code, 200)
-        self.assertEqual(len(small.data), 1)
-        self.assertEqual(len(large.data), 12)
+        self.assertEqual(len(small.data["results"]), 1)
+        self.assertEqual(len(large.data["results"]), 12)
+        self.assertEqual(small.data["count"], 1)
+        self.assertEqual(large.data["count"], 12)
 
     def test_seller_list_is_scoped_and_uses_fixed_queries(self):
         self.create_sales(6, 2)
@@ -233,7 +243,8 @@ class TestSaleListQueryCount(QueryCountBase):
 
         self.assertEqual({sale["seller"] for sale in data}, {self.sellers[1].id})
         self.assertEqual(
-            {sale["seller"] for sale in response.data}, {self.sellers[1].id}
+            {sale["seller"] for sale in response.data["results"]},
+            {self.sellers[1].id},
         )
 
     def test_list_preserves_cancelled_by_name(self):

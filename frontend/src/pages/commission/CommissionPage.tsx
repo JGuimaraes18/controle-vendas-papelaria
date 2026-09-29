@@ -95,7 +95,7 @@ export default function CommissionPage() {
           </div>
           <button 
             onClick={handleSearch}
-            className="bg-teal-700 text-white p-1.5 rounded transition-colors hover:bg-teal-800 active:scale-95 flex items-center justify-center shrink-0"
+            className="bg-teal-700 text-[#fff] p-1.5 rounded transition-colors hover:bg-teal-800 active:scale-95 flex items-center justify-center shrink-0"
             title="Buscar comissões"
           >
             <Search size={15} />

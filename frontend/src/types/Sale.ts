@@ -11,7 +11,7 @@ export interface Sale {
   id: number;
   invoice_number: string;
   date: string;
-  status: "COMPLETED" | "CANCELLED";
+  status: SaleStatus;
   customer: number;
   seller: number;
   items: SaleItem[];
@@ -26,7 +26,7 @@ export interface PurchaseHistoryItem {
   id: number;
   invoice_number: string;
   date: string;
-  status: "COMPLETED" | "CANCELLED";
+  status: SaleStatus;
   seller: number;
   seller_name: string;
   item_count: number;
@@ -40,6 +40,23 @@ export interface PurchaseHistoryItem {
 export interface SaleItemPayload {
   product: number;  
   quantity: number;
+}
+
+export type SaleStatus = "COMPLETED" | "CANCELLED";
+
+export interface SaleListParams {
+  page?: number;
+  page_size?: number;
+  ordering?: string;
+  customer?: number;
+  seller?: number;
+  status?: SaleStatus;
+  start_date?: string;
+  end_date?: string;
+  invoice?: string;
+  min_value?: string;
+  max_value?: string;
+  search?: string;
 }
 
 export interface SaleCreatePayload {

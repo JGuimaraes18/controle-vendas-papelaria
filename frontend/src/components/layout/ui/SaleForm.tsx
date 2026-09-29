@@ -319,7 +319,7 @@ export default function SaleForm({ initialData, onSave, title }: SaleFormProps) 
               <input type="number" className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 outline-none text-center bg-slate-50/50" value={quantityToAdd} onChange={(e) => setQuantityToAdd(Number(e.target.value))} min="1" />
             </div>
 
-            <button onClick={handleAddItem} className="col-span-6 sm:col-span-2 bg-teal-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-teal-700 h-[30px] transition-all flex items-center justify-center gap-1 shadow-sm">
+            <button onClick={handleAddItem} className="col-span-6 sm:col-span-2 bg-teal-600 text-[#fff] px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-teal-700 h-[30px] transition-all flex items-center justify-center gap-1 shadow-sm">
               <Plus size={14} /> Inserir
             </button>
           </div>
@@ -448,7 +448,7 @@ export default function SaleForm({ initialData, onSave, title }: SaleFormProps) 
 
               <div className="flex gap-2">
                 <button
-                  onClick={() => navigate("/")}
+                  onClick={() => navigate("/vendas")}
                   className="flex-1 border border-slate-200 text-slate-600 py-1.5 rounded-lg font-bold hover:bg-slate-50 transition-colors"
                 >
                   Cancelar
@@ -457,7 +457,7 @@ export default function SaleForm({ initialData, onSave, title }: SaleFormProps) 
                 <button
                   onClick={handleSubmit}
                   disabled={initialData?.status === "CANCELLED"}
-                  className="flex-1 bg-teal-600 text-white py-1.5 rounded-lg font-bold shadow-sm hover:bg-teal-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+                  className="flex-1 bg-teal-600 text-[#fff] py-1.5 rounded-lg font-bold shadow-sm hover:bg-teal-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
                 >
                   Gravar Venda
                 </button>

@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { ChevronRight, Percent, ShoppingCart, LogOut, Users, Package, UserRound } from "lucide-react";
+import { ChevronRight, Percent, ShoppingCart, LogOut, Users, Package, UserRound, LayoutDashboard } from "lucide-react";
 import { isAdmin, logout } from "../../services/authService";
 
 interface Props {
@@ -16,7 +16,8 @@ export default function Sidebar({ isOpen }: Props) {
   const inactiveClass = "text-slate-600 hover:bg-slate-50 hover:text-slate-900";
 
   const items = [
-    { label: "Vendas", icones: ShoppingCart, to: "/" },
+    { label: "Dashboard", icones: LayoutDashboard, to: "/" },
+    { label: "Vendas", icones: ShoppingCart, to: "/vendas" },
     { label: "Clientes", icones: Users, to: "/clientes" },
     { label: "Produtos", icones: Package, to: "/produtos" },
     ...(isAdmin()
@@ -61,7 +62,7 @@ export default function Sidebar({ isOpen }: Props) {
             logout();
             navigate("/login");
           }}
-          className="mx-2 p-2.5 text-xs flex items-center justify-start gap-2 bg-slate-50 text-rose-600 rounded-lg hover:bg-rose-50 hover:text-rose-700 transition-all font-medium border border-slate-100"
+          className="mx-2 p-2.5 text-xs flex items-center justify-start gap-2 bg-slate-50 text-rose-600 rounded-lg hover:bg-rose-50 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-500 transition-all font-medium border border-slate-100"
         >
           <LogOut size={16} />
           {isOpen && <span>Sair</span>}

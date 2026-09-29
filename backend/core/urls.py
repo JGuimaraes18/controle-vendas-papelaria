@@ -8,7 +8,7 @@ from apps.accounts.views import UserViewSet
 from apps.accounts.views import CustomTokenObtainPairView
 from apps.customers.views import CustomerViewSet
 from apps.products.views import ProductViewSet
-from apps.sales.views import CommissionReportView, SaleViewSet
+from apps.sales.views import CommissionReportView, DashboardView, SaleViewSet
 from apps.sellers.views import SellerViewSet
 
 router = DefaultRouter()
@@ -23,6 +23,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include(router.urls)),
     path("api/commissions/", CommissionReportView.as_view()),
+    path("api/dashboard/", DashboardView.as_view()),
     path("docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
     path("api/login/", CustomTokenObtainPairView.as_view(), name="login"),
     path("api/refresh/", TokenRefreshView.as_view(), name="refresh"),

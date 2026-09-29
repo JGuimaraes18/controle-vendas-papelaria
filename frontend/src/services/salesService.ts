@@ -1,8 +1,23 @@
 import { api } from "./api";
-import type { Sale, SaleChangeLog, SaleCreatePayload } from "../types/Sale";
+import type {
+  Sale,
+  SaleChangeLog,
+  SaleCreatePayload,
+  SaleListParams,
+} from "../types/Sale";
+import type { PaginatedResponse } from "../types/Pagination";
 
-export async function getSales(): Promise<Sale[]> {
-  const response = await api.get<Sale[]>("/api/sales/");
+export async function getSales(
+  params: SaleListParams = {}
+): Promise<PaginatedResponse<Sale>> {
+  const response = await api.get<PaginatedResponse<Sale>>("/api/sales/", {
+    params,
+  });
+  return response.data;
+}
+
+export async function getSale(id: number): Promise<Sale> {
+  const response = await api.get<Sale>(`/api/sales/${id}/`);
   return response.data;
 }
 

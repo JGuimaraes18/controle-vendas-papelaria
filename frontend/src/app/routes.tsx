@@ -1,9 +1,10 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import type { ReactElement } from "react";
 import Layout from "../components/layout/Layout";
 import SalesPage from "../pages/sales/SalesPage";
 import EditSale from "../pages/sales/EditSale";
 import CreateSale from "../pages/sales/CreateSale";
+import DashboardPage from "../pages/dashboard/DashboardPage";
 import CommissionPage from "../pages/commission/CommissionPage";
 import LoginPage from "../pages/login/LoginPage";
 import PrivateRoute from "./privateRoute";
@@ -18,6 +19,7 @@ import EditProduct from "../pages/product/EditProduct";
 import SellersPage from "../pages/sellers/SellerPage";
 import CreateSeller from "../pages/sellers/CreateSeller";
 import EditSeller from "../pages/sellers/EditSeller";
+import ProfilePage from "../pages/profile/ProfilePage";
 
 
 interface AppRoute {
@@ -34,7 +36,19 @@ const routes: AppRoute[] = [
     title: "Login",
   },
   {
+    path: "/perfil",
+    element: <ProfilePage />,
+    title: "Meu Perfil",
+    roles: ["ADMIN", "SELLER"],
+  },
+  {
     path: "/",
+    element: <DashboardPage />,
+    title: "Dashboard",
+    roles: ["ADMIN", "SELLER"],
+  },
+  {
+    path: "/vendas",
     element: <SalesPage />,
     title: "Vendas",
     roles: ["ADMIN", "SELLER"],
@@ -115,37 +129,35 @@ const routes: AppRoute[] = [
 
 export default function AppRoutes() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
 
-        <Route
-          element={
-            <PrivateRoute>
-              <Layout routes={routes} />
-            </PrivateRoute>
-          }
-        >
-          {routes
-            .filter((route) => route.path !== "/login")
-            .map((route) => (
-              <Route
-                key={route.path}
-                path={route.path}
-                element={
-                  <PrivateRoute allowedRoles={route.roles}>
-                    {route.element}
-                  </PrivateRoute>
-                }
-              />
-            ))}
-        </Route>
+      <Route
+        element={
+          <PrivateRoute>
+            <Layout routes={routes} />
+          </PrivateRoute>
+        }
+      >
+        {routes
+          .filter((route) => route.path !== "/login")
+          .map((route) => (
+            <Route
+              key={route.path}
+              path={route.path}
+              element={
+                <PrivateRoute allowedRoles={route.roles}>
+                  {route.element}
+                </PrivateRoute>
+              }
+            />
+          ))}
+      </Route>
 
-        <Route path="*" element={<NotFoundPage />} />
-        
-        <Route path="/error" element={<ServerErrorPage />} />
+      <Route path="*" element={<NotFoundPage />} />
+      
+      <Route path="/error" element={<ServerErrorPage />} />
 
-      </Routes>
-    </BrowserRouter>
+    </Routes>
   );
 }
