@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, Fragment } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef, Fragment } from "react";
 import { useSearchParams } from "react-router-dom";
 import { getSales } from "../../services/salesService";
 import { getCustomers } from "../../services/customerService";
@@ -210,14 +210,24 @@ export default function SalesList() {
     };
   }, []);
 
+  // `updateParams` is rebuilt on every URL change, so it is kept in a ref here:
+  // depending on it would re-arm the debounce after any page/filtro change, and
+  // the fired call (resetPage) would drop `page` from the URL, snapping back to page 1.
+  const updateParamsRef = useRef(updateParams);
+  useEffect(() => {
+    updateParamsRef.current = updateParams;
+  }, [updateParams]);
+
   useEffect(() => {
     const handle = window.setTimeout(() => {
       const q = searchInput.trim();
-      updateParams({ q });
+      const currentQ = new URLSearchParams(window.location.search).get("q") ?? "";
+      if (q === currentQ) return;
+      updateParamsRef.current({ q });
     }, 400);
 
     return () => window.clearTimeout(handle);
-  }, [searchInput, updateParams]);
+  }, [searchInput]);
 
   useEffect(() => {
     setStartDate(searchParams.get("start_date") ?? "");
@@ -711,7 +721,7 @@ export default function SalesList() {
           page={page}
           pageSize={pageSize}
           count={total}
-          onPageChange={(nextPage) => updateParams({ page: nextPage })}
+          onPageChange={(nextPage) => updateParams({ page: nextPage }, { resetPage: false })}
           onPageSizeChange={(size) => updateParams({ page_size: size })}
         />
       </div>
