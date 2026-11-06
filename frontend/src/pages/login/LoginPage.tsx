@@ -74,7 +74,7 @@ export default function LoginPage() {
                 <Shield size={15} />
               </div>
               <div className="min-w-0">
-                <div className="text-[11px] font-semibold text-slate-700">Acessar como Administrador</div>
+                <div className="text-[11px] font-semibold text-white">Acessar como Administrador</div>
                 <div className="text-[10px] text-slate-400 truncate">
                   Visão geral e gestão completa do sistema
                 </div>
