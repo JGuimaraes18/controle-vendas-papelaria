@@ -17,5 +17,8 @@ else
     echo "Superuser env not set, skipping"
 fi
 
+echo "Creating demo accounts (if not exist)..."
+python manage.py seed_demo || echo "Demo accounts already exist or failed to create."
+
 echo "Running command: $@"
 exec "$@"
