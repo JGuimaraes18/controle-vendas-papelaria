@@ -1,6 +1,6 @@
-# Controle de Vendas — Desafio Técnico Python Full-Stack
+# Controle de Vendas CIVEN – Centralização e Inteligência de Vendas e Negócios
 
-Desafio técnico focado no desenvolvimento de uma aplicação robusta e escalável para controle de vendas e relatórios de comissões, projetada com uma arquitetura moderna dividida entre cliente e servidor, e empacotada em containers para máxima portabilidade.
+Projeto de desenvolvimento de uma aplicação robusta e escalável para controle de vendas e relatórios de comissões, projetada com uma arquitetura moderna dividida entre cliente e servidor, e empacotada em containers para máxima portabilidade.
 
 ---
 
@@ -43,8 +43,8 @@ Siga os passos abaixo para clonar, configurar e rodar o projeto na sua máquina.
 Abra o seu terminal e execute:
 
 ```bash
-git clone [https://github.com/JGuimaraes18/dev-fulstack-python-desafio.git](https://github.com/JGuimaraes18/dev-fulstack-python-desafio.git)
-cd dev-fulstack-python-desafio
+git clone https://github.com/JGuimaraes18/controle-vendas-papelaria.git controle-vendas-papelaria
+cd controle-vendas-papelaria
 ```
 
 ### 2. Configurar as Variáveis de Ambiente (`.env`)
