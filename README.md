@@ -1,4 +1,4 @@
-# Controle de Vendas CIVEN – Centralização e Inteligência de Vendas e Negócios
+# CIVEN – Centralização e Inteligência de Vendas e Negócios
 
 Projeto de desenvolvimento de uma aplicação robusta e escalável para controle de vendas e relatórios de comissões, projetada com uma arquitetura moderna dividida entre cliente e servidor, e empacotada em containers para máxima portabilidade.
 
