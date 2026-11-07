@@ -63,7 +63,7 @@ export default function LoginPage() {
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-all active:scale-[0.99] ${
                 activeDemo === "ADMIN"
                   ? "border-teal-500 bg-teal-50 ring-1 ring-teal-500/20"
-                  : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 text-slate-700"
+                  : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 text-black"
               }`}
             >
               <div
