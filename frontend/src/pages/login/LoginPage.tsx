@@ -63,7 +63,7 @@ export default function LoginPage() {
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-all active:scale-[0.99] ${
                 activeDemo === "ADMIN"
                   ? "border-teal-500 bg-teal-50 ring-1 ring-teal-500/20"
-                  : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 text-white"
+                  : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 text-slate-700"
               }`}
             >
               <div
@@ -74,7 +74,7 @@ export default function LoginPage() {
                 <Shield size={15} />
               </div>
               <div className="min-w-0">
-                <div className="text-[11px] font-semibold text-slate-700">!Acessar como Administrador</div>
+                <div className="text-[11px] font-semibold text-slate-700">Acessar como Administrador</div>
                 <div className="text-[10px] text-slate-400 truncate">
                   Visão geral e gestão completa do sistema
                 </div>
