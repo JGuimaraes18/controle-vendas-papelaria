@@ -68,7 +68,7 @@ export default function LoginPage() {
             >
               <div
                 className={`shrink-0 h-8 w-8 rounded-lg flex items-center justify-center ${
-                  activeDemo === "ADMIN" ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-500"
+                  activeDemo === "ADMIN" ? "bg-teal-600 text-teal-900" : "bg-slate-100 text-slate-500"
                 }`}
               >
                 <Shield size={15} />
