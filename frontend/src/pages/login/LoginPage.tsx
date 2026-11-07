@@ -103,7 +103,12 @@ export default function LoginPage() {
                 <User size={15} />
               </div>
               <div className="min-w-0">
-                <div className="text-[11px] font-semibold text-slate-700">Acessar como Vendedor</div>
+                <div 
+                  className={`text-[11px] font-semibold transition-colors ${
+                    activeDemo === "ADMIN" ? "text-teal-900" : "text-slate-700"
+                  }`}
+                >
+                  Acessar como Vendedor</div>
                 <div className="text-[10px] text-slate-400 truncate">
                   Experiência do vendedor com acesso restrito
                 </div>
