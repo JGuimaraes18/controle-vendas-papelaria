@@ -105,7 +105,7 @@ export default function LoginPage() {
               <div className="min-w-0">
                 <div 
                   className={`text-[11px] font-semibold transition-colors ${
-                    activeDemo === "ADMIN" ? "text-teal-900" : "text-slate-700"
+                    activeDemo === "SELLER" ? "text-teal-900" : "text-slate-700"
                   }`}
                 >
                   Acessar como Vendedor</div>
