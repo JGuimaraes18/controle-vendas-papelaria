@@ -42,23 +42,24 @@ export default function SellerList({
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
-    fetchSellers();
+    let active = true;
+
+    getSellers()
+      .then((data) => {
+        if (active) setSellers(data);
+      })
+      .catch((err) => {
+        console.error(err);
+        if (active) setError("Não foi possível carregar os vendedores.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
-
-  async function fetchSellers() {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const data = await getSellers();
-      setSellers(data);
-    } catch (err) {
-      console.error(err);
-      setError("Não foi possível carregar os vendedores.");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   function toggleSort(key: SellerSortKey) {
     if (sortKey === key) {

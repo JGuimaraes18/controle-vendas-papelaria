@@ -43,23 +43,24 @@ export default function CustomerList({
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
-    fetchCustomers();
+    let active = true;
+
+    getCustomers()
+      .then((data) => {
+        if (active) setCustomers(data);
+      })
+      .catch((err) => {
+        console.error(err);
+        if (active) setError("Não foi possível carregar os clientes.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
-
-  async function fetchCustomers() {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const data = await getCustomers();
-      setCustomers(data);
-    } catch (err) {
-      console.error(err);
-      setError("Não foi possível carregar os clientes.");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   function toggleSort(key: CustomerSortKey) {
     if (sortKey === key) {

@@ -161,11 +161,11 @@ class QueryCountBase(QueryCountMixin, APITestCase):
         return SaleSerializer(self.sale_list_queryset(user), many=True).data
 
     def commission_service(self):
-        today = timezone.localdate()
+        today = timezone.now().date()
         return [str(c["seller"]) for c in calculate_commissions(today, today)]
 
     def commission_report(self, client=None):
-        today = timezone.localdate()
+        today = timezone.now().date()
         client = client or self.admin_client
         return client.get(f"/api/commissions/?start_date={today}&end_date={today}")
 

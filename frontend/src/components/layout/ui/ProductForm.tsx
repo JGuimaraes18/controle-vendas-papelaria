@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Package,
@@ -46,8 +46,10 @@ export default function ProductForm({
   );
 
   const [formError, setFormError] = useState(false);
+  const [prevInitialData, setPrevInitialData] = useState(initialData);
 
-  useEffect(() => {
+  if (initialData !== prevInitialData) {
+    setPrevInitialData(initialData);
     setDescription(initialData?.description || "");
     setUnitPrice(formatCurrencyInput(initialData?.unit_price || ""));
     setCommissionPercent(
@@ -58,7 +60,7 @@ export default function ProductForm({
         ? String(initialData.stock_quantity)
         : ""
     );
-  }, [initialData]);
+  }
 
   const handleSubmit = async () => {
     if (

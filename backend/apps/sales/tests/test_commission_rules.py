@@ -153,7 +153,7 @@ class TestCommissionRule(TestCase):
             quantity=3,
         )
 
-        today = timezone.localdate()
+        today = timezone.now().date()
 
         report = list(calculate_commissions(today, today))
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Outlet,
   useLocation,
@@ -20,6 +20,12 @@ interface Props {
 export default function Layout({ routes }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
+  const [pathname, setPathname] = useState(location.pathname);
+
+  if (location.pathname !== pathname) {
+    setPathname(location.pathname);
+    setIsOpen(false);
+  }
 
   const currentRoute = routes.find((route) =>
     matchPath(
@@ -29,10 +35,6 @@ export default function Layout({ routes }: Props) {
   );
 
   const title = currentRoute?.title || "Dashboard";
-
-  useEffect(() => {
-    setIsOpen(false);
-  }, [location.pathname]);
 
   return (
     <div className="h-screen flex flex-col bg-slate-50">

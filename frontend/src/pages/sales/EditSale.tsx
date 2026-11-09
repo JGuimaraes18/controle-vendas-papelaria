@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getSale, updateSale } from "../../services/salesService";
-import type { Sale } from "../../types/Sale";
+import type { Sale, SaleCreatePayload } from "../../types/Sale";
 import SaleForm from "../../components/layout/ui/SaleForm";
 
 function extractErrorMessage(error: unknown): string {
@@ -32,7 +32,7 @@ export default function EditSalePage() {
       try {
         const current = await getSale(Number(id));
         setSale(current);
-      } catch (error) {
+      } catch {
         navigate("/vendas", {
           state: {
             message: "Não foi possível carregar a venda.",
@@ -44,7 +44,7 @@ export default function EditSalePage() {
     loadSale();
   }, [id, navigate]);
 
-  const handleUpdate = async (payload: any) => {
+  const handleUpdate = async (payload: SaleCreatePayload) => {
     try {
       await updateSale(Number(id), payload);
       navigate("/vendas", {

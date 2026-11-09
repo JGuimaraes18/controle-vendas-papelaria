@@ -5,7 +5,7 @@ import {
   ChevronsRight,
 } from "lucide-react";
 
-export const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
+const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
 
 export type PageSize = (typeof PAGE_SIZE_OPTIONS)[number];
 

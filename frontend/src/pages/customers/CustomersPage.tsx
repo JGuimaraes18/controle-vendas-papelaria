@@ -7,22 +7,35 @@ export default function CustomersPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [message, setMessage] = useState<string | null>(null);
-  const [type, setType] = useState<"success" | "error" | "warning">("success");
+  const [message, setMessage] = useState<string | null>(
+    location.state?.message ?? null
+  );
+  const [type, setType] = useState<"success" | "error" | "warning">(
+    location.state?.type || "success"
+  );
   const [searchTerm, setSearchTerm] = useState("");
+  const [lastState, setLastState] = useState(location.state);
 
-  useEffect(() => {
+  if (location.state !== lastState) {
+    setLastState(location.state);
+
     if (location.state?.message) {
       setMessage(location.state.message);
       setType(location.state.type || "success");
-
-      window.history.replaceState({}, document.title);
-
-      setTimeout(() => {
-        setMessage(null);
-      }, 3000);
     }
-  }, [location]);
+  }
+
+  useEffect(() => {
+    if (!message) return;
+
+    window.history.replaceState({}, document.title);
+
+    const timer = setTimeout(() => {
+      setMessage(null);
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [message]);
 
   return (
     <div className="space-y-4">

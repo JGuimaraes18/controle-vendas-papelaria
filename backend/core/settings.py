@@ -5,6 +5,8 @@ import environ
 from datetime import timedelta
 from pathlib import Path
 
+from core.version_generated import APP_VERSION
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -37,7 +39,7 @@ SIMPLE_JWT = {
 SPECTACULAR_SETTINGS = {
     "TITLE": "Controle de vendas API ",
     "DESCRIPTION": "API para controle de vendas e cálculo de comissões.",
-    "VERSION": "1.0.0",
+    "VERSION": APP_VERSION,
     "SORT_OPERATION_PARAMETERS": False,
     "COMPONENT_SPLIT_REQUEST": True,
 }

@@ -90,14 +90,16 @@ export default function ProfilePage() {
       setNewPassword("");
       setConfirmPassword("");
       setSuccess("Senha alterada com sucesso.");
-    } catch (err: any) {
-      const data = err?.response?.data;
+    } catch (err) {
+      const data = (err as { response?: { data?: unknown } })?.response?.data;
 
       if (typeof data === "object" && data !== null) {
-        if (data.detail) {
-          setGeneralError(data.detail);
+        const payload = data as { detail?: unknown };
+
+        if (typeof payload.detail === "string") {
+          setGeneralError(payload.detail);
         } else {
-          setErrors(data);
+          setErrors(data as Record<string, string[]>);
         }
       } else {
         setGeneralError("Não foi possível alterar a senha. Tente novamente.");

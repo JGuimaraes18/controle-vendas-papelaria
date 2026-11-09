@@ -10,6 +10,7 @@ from apps.customers.views import CustomerViewSet
 from apps.products.views import ProductViewSet
 from apps.sales.views import CommissionReportView, DashboardView, SaleViewSet
 from apps.sellers.views import SellerViewSet
+from core.views import VersionView
 
 router = DefaultRouter()
 router.register(r"users", UserViewSet, basename="users")
@@ -22,6 +23,7 @@ router.register(r"sellers", SellerViewSet)
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include(router.urls)),
+    path("api/version/", VersionView.as_view(), name="version"),
     path("api/commissions/", CommissionReportView.as_view()),
     path("api/dashboard/", DashboardView.as_view()),
     path("docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),

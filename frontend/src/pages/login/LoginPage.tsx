@@ -27,7 +27,7 @@ export default function LoginPage() {
       await login({ email, password });
 
       navigate("/");
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
       setError("Credenciais inválidas. Verifique seus dados.");
     } finally {

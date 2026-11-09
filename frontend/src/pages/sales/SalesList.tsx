@@ -65,6 +65,17 @@ export default function SalesList() {
   const [minValue, setMinValue] = useState(searchParams.get("min_value") ?? "");
   const [maxValue, setMaxValue] = useState(searchParams.get("max_value") ?? "");
 
+  const searchParamsKey = searchParams.toString();
+  const [lastParamsKey, setLastParamsKey] = useState(searchParamsKey);
+
+  if (searchParamsKey !== lastParamsKey) {
+    setLastParamsKey(searchParamsKey);
+    setStartDate(searchParams.get("start_date") ?? "");
+    setEndDate(searchParams.get("end_date") ?? "");
+    setMinValue(searchParams.get("min_value") ?? "");
+    setMaxValue(searchParams.get("max_value") ?? "");
+  }
+
   const navigate = useNavigate();
   const admin = isAdmin();
 
@@ -164,7 +175,7 @@ export default function SalesList() {
   }, [queryParams]);
 
   useEffect(() => {
-    fetchSales();
+    queueMicrotask(fetchSales);
   }, [fetchSales, queryKey]);
 
   useEffect(() => {
@@ -228,13 +239,6 @@ export default function SalesList() {
 
     return () => window.clearTimeout(handle);
   }, [searchInput]);
-
-  useEffect(() => {
-    setStartDate(searchParams.get("start_date") ?? "");
-    setEndDate(searchParams.get("end_date") ?? "");
-    setMinValue(searchParams.get("min_value") ?? "");
-    setMaxValue(searchParams.get("max_value") ?? "");
-  }, [searchParams]);
 
   const customerMap = useMemo(
     () => new Map(customers.map((c) => [c.id, c.name])),

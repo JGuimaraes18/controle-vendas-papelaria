@@ -8,17 +8,26 @@ import { getUser, isAdmin } from "../../../services/authService";
 import type { Seller } from "../../../types/Seller";
 import type { Customer } from "../../../types/Customer";
 import type { Product } from "../../../types/Product";
-import type { Sale, SaleItem } from "../../../types/Sale";
+import type { Sale, SaleCreatePayload, SaleItem } from "../../../types/Sale";
+
+function entityId(value: unknown): number {
+  if (typeof value === "object" && value !== null && "id" in value) {
+    return Number((value as { id: number }).id);
+  }
+
+  return Number(value);
+}
 
 interface SaleFormProps {
   initialData?: Sale | null;
-  onSave: (payload: any) => Promise<void>;
+  onSave: (payload: SaleCreatePayload) => Promise<void>;
   title: string;
 }
 
 export default function SaleForm({ initialData, onSave, title }: SaleFormProps) {
   const navigate = useNavigate();
   const suggestionRef = useRef<HTMLDivElement>(null);
+  const nextItemId = useRef(-1);
   
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [sellers, setSellers] = useState<Seller[]>([]);
@@ -72,8 +81,8 @@ export default function SaleForm({ initialData, onSave, title }: SaleFormProps) 
 
       if (initialData) {
         setItems(initialData.items);
-        const sId = typeof initialData.seller === "object" ? (initialData.seller as any).id : Number(initialData.seller);
-        const cId = typeof initialData.customer === "object" ? (initialData.customer as any).id : Number(initialData.customer);
+        const sId = entityId(initialData.seller);
+        const cId = entityId(initialData.customer);
 
         setSelectedSeller(sId);
         setSelectedCustomer(cId);
@@ -158,7 +167,7 @@ export default function SaleForm({ initialData, onSave, title }: SaleFormProps) 
     }
     const unitPrice = parseFloat(selectedProduct.unit_price);
     const newItem: SaleItem = {
-      id: Math.random(),
+      id: nextItemId.current--,
       product: selectedProduct.id,
       product_description: selectedProduct.description,
       quantity: quantityToAdd,
@@ -178,10 +187,7 @@ export default function SaleForm({ initialData, onSave, title }: SaleFormProps) 
     const map: Record<number, number> = {};
 
     (initialData?.items || []).forEach((item) => {
-      const productId =
-        typeof item.product === "object"
-          ? (item.product as any).id
-          : Number(item.product);
+      const productId = entityId(item.product);
       map[productId] = (map[productId] || 0) + item.quantity;
     });
 

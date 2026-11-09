@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   UserRound,
@@ -64,8 +64,10 @@ export default function SellerForm({
 
   const [formError, setFormError] = useState(false);
   const [emailError, setEmailError] = useState(false);
+  const [prevInitialData, setPrevInitialData] = useState(initialData);
 
-  useEffect(() => {
+  if (initialData !== prevInitialData) {
+    setPrevInitialData(initialData);
     setFirstName(initialData?.first_name || "");
     setLastName(initialData?.last_name || "");
     setEmail(initialData?.email || "");
@@ -73,7 +75,7 @@ export default function SellerForm({
     setPhone(formatPhone(initialData?.phone || ""));
     setGroup(initialData?.group || "SELLER");
     setIsActive(initialData?.is_active ?? true);
-  }, [initialData]);
+  }
 
   const handleSubmit = async () => {
     const emailValid = isValidEmail(email);

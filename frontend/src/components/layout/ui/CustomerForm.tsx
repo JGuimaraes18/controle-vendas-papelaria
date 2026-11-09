@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { User, Mail, Phone } from "lucide-react";
 import type { Customer } from "../../../types/Customer";
@@ -24,12 +24,14 @@ export default function CustomerForm({
   );
   const [formError, setFormError] = useState(false);
   const [emailError, setEmailError] = useState(false);
+  const [prevInitialData, setPrevInitialData] = useState(initialData);
 
-  useEffect(() => {
+  if (initialData !== prevInitialData) {
+    setPrevInitialData(initialData);
     setName(initialData?.name || "");
     setEmail(initialData?.email || "");
     setPhone(formatPhone(initialData?.phone || ""));
-  }, [initialData]);
+  }
 
   const handleSubmit = async () => {
     const emailValid = isValidEmail(email);

@@ -35,6 +35,38 @@ Toda a aplicação é orquestrada via **Docker Containers**, garantindo que o co
 
 ---
 
+## Versionamento, CI e Releases
+
+A versão canônica da aplicação fica no arquivo [`VERSION`](VERSION). Os artefatos
+do frontend, do backend e dos arquivos `package.json`/`package-lock.json` são
+sincronizados a partir dele:
+
+```bash
+# Sincronizar os artefatos com a versão canônica:
+make version-sync
+
+# Validar a consistência da versão:
+make version-check
+```
+
+A versão e o commit aparecem no rodapé da sidebar e podem ser consultados no
+endpoint público `GET /api/version/`.
+
+A CI valida frontend e backend em Pull Requests para `main` e em pushes na
+`main`, sem realizar deploy. Vercel e Render continuam responsáveis pelos
+deploys automáticos.
+
+Documentação relacionada:
+
+- [`docs/VERSIONING.md`](docs/VERSIONING.md) — SemVer, fonte de verdade e regras
+  de incremento;
+- [`docs/RELEASES.md`](docs/RELEASES.md) — preparação, tag, publicação,
+  verificação e rollback;
+- [`docs/CI.md`](docs/CI.md) — workflows, execução local e branch protection;
+- [`CHANGELOG.md`](CHANGELOG.md) — histórico de mudanças.
+
+---
+
 ## Como Levantar o Ambiente Local
 
 Siga os passos abaixo para clonar, configurar e rodar o projeto na sua máquina.
@@ -49,14 +81,14 @@ cd controle-vendas-papelaria
 
 ### 2. Configurar as Variáveis de Ambiente (`.env`)
 
-O projeto utiliza variáveis de ambiente para gerenciar credenciais de forma segura. Os arquivos de exemplo estão na raiz do projeto. Basta duplicá-los e remover o `.example` do nome e ajustar os parâmetros de acordo com seu ambiente:
+O projeto utiliza variáveis de ambiente para gerenciar credenciais de forma segura. Os arquivos de exemplo estão na raiz do projeto. Basta copiá-los para os nomes esperados e ajustar os parâmetros de acordo com seu ambiente:
 
 ```bash
 # Para o ambiente de Desenvolvimento:
-cp .env.dev.example .env.dev
+cp .env_dev_example .env_dev
 
 # Para o ambiente de Produção:
-cp .env.prod.example .env.prod
+cp .env_prod_example .env_prod
 ```
 
 ### 3. Iniciar a aplicação em modo Dev e Prod
@@ -73,11 +105,14 @@ make start-dev
 # Se for a primeira execução ou houver novas dependências:
 make build-prod
 
-# Para apenas iniciar os containers no modo Dev:
+# Para apenas iniciar os containers no modo Prod:
 make start-prod
 
 # Para parar todos os containers ativos do projeto:
 make stop
+
+# Para listar todos os comandos disponíveis:
+make help
 ```
 
 ### 4. Acessando a Aplicação

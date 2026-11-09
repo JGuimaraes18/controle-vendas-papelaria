@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -68,9 +69,12 @@ class DashboardTestBase(APITestCase):
             seller=seller,
             status=status,
         )
-        Sale.objects.filter(pk=sale.pk).update(
-            date=timezone.now() - timezone.timedelta(days=days_ago)
+        sale_date = datetime.combine(
+            timezone.localdate() - timedelta(days=days_ago),
+            time(12, 0),
+            tzinfo=UTC,
         )
+        Sale.objects.filter(pk=sale.pk).update(date=sale_date)
 
         for product, quantity in items:
             SaleItem.objects.create(
@@ -124,13 +128,24 @@ class DashboardEndpointTest(DashboardTestBase):
     def test_summary_considers_period_filter(self):
         self._create_sale(self.seller, [(self.product_soup, 2)])  # hoje
         self._create_sale(
-            self.seller, [(self.product_meat, 1)], days_ago=10
+            self.seller, [(self.product_meat, 1)], days_ago=60
         )
 
-        response = self._get(params={"start_date": "2026-09-01", "end_date": "2026-09-30"})
+        today = timezone.localdate()
+        start_date = today - timezone.timedelta(days=7)
+        end_date = today + timezone.timedelta(days=1)
+
+        response = self._get(
+            params={
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+            }
+        )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["summary"]["completed_sales"], 2)
+        summary = response.data["summary"]
+        self.assertEqual(summary["completed_sales"], 1)
+        self.assertEqual(summary["revenue"], "50.00")
 
     def test_cancelled_sales_counted_only_as_cancelled(self):
         self._create_sale(self.seller, [(self.product_soup, 5)])
@@ -151,7 +166,13 @@ class DashboardEndpointTest(DashboardTestBase):
         self._create_sale(self.seller, [(self.product_meat, 1)], days_ago=1)
         self._create_sale(self.seller, [(self.product_soup, 1)], days_ago=3)
 
-        response = self._get()
+        today = timezone.localdate()
+        response = self._get(
+            params={
+                "start_date": (today - timedelta(days=3)).isoformat(),
+                "end_date": today.isoformat(),
+            }
+        )
 
         self.assertEqual(len(response.data["daily"]), 2)
         # soma do mesmo dia no site de hoje-1: 2*25 + 80 = 130

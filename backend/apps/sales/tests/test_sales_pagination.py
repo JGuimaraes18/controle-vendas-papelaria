@@ -1,5 +1,5 @@
+from datetime import UTC, datetime, time, timedelta
 from decimal import Decimal
-from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -278,13 +278,16 @@ class SalesFilterTest(SalesPaginationBase):
         self.assertIn("invoice", response.data)
 
     def test_filter_by_date_range(self):
-        self.create_sales(4)
-        oldest = Sale.objects.order_by("id").first()
+        today = timezone.now().date()
+        sales = self.create_sales(4)
+        oldest = sales[0]
+
+        noon = datetime.combine(today, time(12, 0), tzinfo=UTC)
+        Sale.objects.filter(id__in=[sale.id for sale in sales]).update(date=noon)
         Sale.objects.filter(id=oldest.id).update(
-            date=timezone.now() - timedelta(days=2)
+            date=noon - timedelta(days=2)
         )
 
-        today = timezone.localdate()
         yesterday = today - timedelta(days=1)
 
         response = self.sales_page(start_date=yesterday, end_date=today)

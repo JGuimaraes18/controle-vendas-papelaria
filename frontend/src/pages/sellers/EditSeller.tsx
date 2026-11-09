@@ -23,47 +23,58 @@ export default function EditSeller() {
 
   const [seller, setSeller] = useState<Seller | null>(null);
   const [loading, setLoading] = useState(true);
+  const [prevId, setPrevId] = useState(id);
+
+  if (id !== prevId) {
+    setPrevId(id);
+    setLoading(true);
+  }
 
   useEffect(() => {
-    loadSeller();
-  }, [id]);
+    let active = true;
 
-  async function loadSeller() {
-    try {
-      setLoading(true);
+    getSellers()
+      .then((sellers) => {
+        if (!active) return;
 
-      const sellers = await getSellers();
+        const currentSeller = sellers.find(
+          (item) => item.id === Number(id)
+        );
 
-      const currentSeller = sellers.find(
-        (item) => item.id === Number(id)
-      );
+        if (!currentSeller) {
+          navigate("/vendedores", {
+            state: {
+              message: "Vendedor não encontrado!",
+              type: "error",
+            },
+          });
 
-      if (!currentSeller) {
-        navigate("/vendedores", {
-          state: {
-            message: "Vendedor não encontrado!",
-            type: "error",
-          },
-        });
+          return;
+        }
 
-        return;
-      }
+        setSeller(currentSeller);
+      })
+      .catch((error) => {
+        console.error(error);
 
-      setSeller(currentSeller);
-    } catch (error) {
-      console.error(error);
-
-      navigate("/vendedores", {
-        state: {
-          message:
-            "Erro ao carregar vendedor!",
-          type: "error",
-        },
+        if (active) {
+          navigate("/vendedores", {
+            state: {
+              message:
+                "Erro ao carregar vendedor!",
+              type: "error",
+            },
+          });
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
-    } finally {
-      setLoading(false);
-    }
-  }
+
+    return () => {
+      active = false;
+    };
+  }, [id, navigate]);
 
   const handleSave = async (
     data: SellerFormData

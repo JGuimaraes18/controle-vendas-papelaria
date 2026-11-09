@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { ChevronRight, Percent, ShoppingCart, LogOut, Users, Package, UserRound, LayoutDashboard } from "lucide-react";
+import { APP_VERSION_LABEL, APP_VERSION_TITLE } from "../../buildInfo";
 import { isAdmin, logout } from "../../services/authService";
 
 interface Props {
@@ -57,16 +58,25 @@ export default function Sidebar({ isOpen }: Props) {
           ))}
         </div>
 
-        <button
-          onClick={() => {
-            logout();
-            navigate("/login");
-          }}
-          className="mx-2 p-2.5 text-xs flex items-center justify-start gap-2 bg-slate-50 text-rose-600 rounded-lg hover:bg-rose-50 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-500 transition-all font-medium border border-slate-100"
-        >
-          <LogOut size={16} />
-          {isOpen && <span>Sair</span>}
-        </button>
+        <div className="space-y-2">
+          <button
+            onClick={() => {
+              logout();
+              navigate("/login");
+            }}
+            className="mx-2 p-2.5 text-xs flex items-center justify-start gap-2 bg-slate-50 text-rose-600 rounded-lg hover:bg-rose-50 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-500 transition-all font-medium border border-slate-100"
+          >
+            <LogOut size={16} />
+            {isOpen && <span>Sair</span>}
+          </button>
+
+          <div
+            className="px-2 pb-1 text-center text-[10px] leading-tight text-slate-400 dark:text-slate-500 truncate select-none"
+            title={APP_VERSION_TITLE}
+          >
+            {isOpen ? APP_VERSION_TITLE : APP_VERSION_LABEL}
+          </div>
+        </div>
       </nav>
     </div>
   );

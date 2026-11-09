@@ -47,23 +47,24 @@ export default function ProductList({
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
-    fetchProducts();
+    let active = true;
+
+    getProducts()
+      .then((data) => {
+        if (active) setProducts(data);
+      })
+      .catch((err) => {
+        console.error(err);
+        if (active) setError("Não foi possível carregar os produtos.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
-
-  async function fetchProducts() {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const data = await getProducts();
-      setProducts(data);
-    } catch (err) {
-      console.error(err);
-      setError("Não foi possível carregar os produtos.");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   function toggleSort(key: ProductSortKey) {
     if (sortKey === key) {
